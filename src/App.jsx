@@ -1,5 +1,6 @@
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Html, OrbitControls, PerspectiveCamera, Text } from '@react-three/drei';
+import { Environment, Html, Lightformer, OrbitControls, PerspectiveCamera, SoftShadows, Text } from '@react-three/drei';
+import { Bloom, EffectComposer, SSAO, Vignette } from '@react-three/postprocessing';
 import {
   Activity,
   BadgeCheck,
@@ -19,6 +20,7 @@ import {
   Headphones,
   HeartPulse,
   Hospital,
+  ImageUp,
   Layers3,
   Mic,
   Pause,
@@ -39,6 +41,7 @@ import {
 } from 'lucide-react';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { create } from 'zustand';
+import * as THREE from 'three';
 import {
   Area,
   AreaChart,
@@ -152,6 +155,14 @@ const recordingTimeline = [
   { stamp: '01:54', cue: 'Specimen extraction', metric: 'Hemostasis confirmed' },
 ];
 
+const assetPipeline = [
+  { slot: 'Human patient GLB', target: '/models/anatomy/patient-abdomen.glb', status: 'ready for licensed asset' },
+  { slot: 'Layered abdomen', target: '/models/anatomy/skin-fat-fascia-liver-gallbladder.glb', status: 'deformable proxy active' },
+  { slot: 'PBR surgical tools', target: '/models/tools/laparoscopy-toolkit.glb', status: 'metal shader active' },
+  { slot: 'OT equipment', target: '/models/ot/surgical-theater-equipment.glb', status: 'proxy carts active' },
+  { slot: 'Texture maps', target: '/textures/{albedo,normal,roughness,ao}/', status: 'procedural maps active' },
+];
+
 const skinMarks = [
   [-0.2, 0.62, -0.38, 0.012],
   [0.18, 0.63, -0.28, 0.009],
@@ -162,6 +173,69 @@ const skinMarks = [
 ];
 
 const floorGrid = Array.from({ length: 13 }, (_, index) => (index - 6) * 0.55);
+
+function createProceduralTexture(kind) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  const palette = {
+    skin: ['#bf8069', '#d2a08b', '#8f5647'],
+    tissue: ['#8b2f2d', '#d4685c', '#481414'],
+    drape: ['#178a91', '#25a7ad', '#0d5d63'],
+    liver: ['#5a2f19', '#7b3a22', '#2a120d'],
+    floor: ['#17272f', '#223640', '#0f1a21'],
+  }[kind] ?? ['#888', '#aaa', '#555'];
+
+  ctx.fillStyle = palette[0];
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let i = 0; i < 1800; i += 1) {
+    const x = Math.random() * canvas.width;
+    const y = Math.random() * canvas.height;
+    const radius = Math.random() * (kind === 'drape' ? 1.8 : 3.2) + 0.4;
+    ctx.globalAlpha = Math.random() * 0.18 + 0.05;
+    ctx.fillStyle = Math.random() > 0.5 ? palette[1] : palette[2];
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (kind === 'drape' || kind === 'floor') {
+    ctx.globalAlpha = kind === 'drape' ? 0.16 : 0.22;
+    ctx.strokeStyle = palette[2];
+    for (let x = 0; x < canvas.width; x += kind === 'drape' ? 14 : 48) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+      ctx.stroke();
+    }
+    for (let y = 0; y < canvas.height; y += kind === 'drape' ? 18 : 48) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
+    }
+  }
+
+  ctx.globalAlpha = 1;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(kind === 'floor' ? 5 : 2, kind === 'floor' ? 5 : 2);
+  texture.anisotropy = 8;
+  return texture;
+}
+
+function seededUnit(index, salt = 1) {
+  const value = Math.sin(index * 12.9898 + salt * 78.233) * 43758.5453;
+  return value - Math.floor(value);
+}
+
+function useProceduralTexture(kind) {
+  return useMemo(() => createProceduralTexture(kind), [kind]);
+}
 
 const useSimulation = create((set) => ({
   activeProcedure: procedures[0],
@@ -228,6 +302,18 @@ function SurgicalLights() {
             <meshStandardMaterial emissive="#d7fcff" emissiveIntensity={1.8} color="#dffcff" />
           </mesh>
           <pointLight position={[0, -0.2, 0]} intensity={24} color="#e7fdff" distance={8} />
+          <spotLight
+            position={[0, -0.08, 0]}
+            target-position={[0, -2.2, -0.2]}
+            intensity={85}
+            angle={0.45}
+            penumbra={0.72}
+            distance={7}
+            color="#f6feff"
+            castShadow
+            shadow-mapSize-width={1024}
+            shadow-mapSize-height={1024}
+          />
         </group>
       ))}
       <mesh position={[0, 0.06, 0]}>
@@ -239,8 +325,14 @@ function SurgicalLights() {
 }
 
 function RoomShell() {
+  const floorTexture = useProceduralTexture('floor');
+
   return (
     <group>
+      <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.026, 0]}>
+        <planeGeometry args={[8.2, 5.9]} />
+        <meshStandardMaterial map={floorTexture} color="#d4f3f5" roughness={0.48} metalness={0.08} />
+      </mesh>
       <mesh receiveShadow position={[0, 1.38, -2.85]}>
         <boxGeometry args={[8.2, 2.85, 0.08]} />
         <meshStandardMaterial color="#d4dde1" roughness={0.48} metalness={0.05} />
@@ -280,6 +372,119 @@ function RoomShell() {
           sterile storage
         </Text>
       </group>
+    </group>
+  );
+}
+
+function SoftTissueLayer({ caseStep }) {
+  const meshRef = useRef();
+  const skinTexture = useProceduralTexture('skin');
+
+  useFrame(({ clock }) => {
+    const tissueGeometry = meshRef.current?.geometry;
+    if (!tissueGeometry) return;
+
+    const positions = tissueGeometry.attributes.position;
+    const pressureCenters = [
+      [0.02, -0.28, caseStep >= 1 ? 0.09 : 0.02],
+      [0.23, -0.1, caseStep >= 2 ? 0.07 : 0.01],
+      [-0.22, -0.02, caseStep >= 3 ? 0.055 : 0.01],
+    ];
+
+    for (let index = 0; index < positions.count; index += 1) {
+      const x = positions.getX(index);
+      const y = positions.getY(index);
+      let z = Math.sin(clock.elapsedTime * 2.1 + x * 4) * 0.004;
+
+      pressureCenters.forEach(([cx, cy, strength]) => {
+        const distance = Math.hypot(x - cx, y - cy);
+        z -= Math.exp(-(distance * distance) / 0.018) * strength;
+      });
+
+      positions.setZ(index, z);
+    }
+
+    positions.needsUpdate = true;
+    tissueGeometry.computeVertexNormals();
+  });
+
+  return (
+    <mesh ref={meshRef} position={[0, 0.625, 0.08]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <planeGeometry args={[1.08, 0.88, 42, 42]} />
+      <meshPhysicalMaterial
+        map={skinTexture}
+        color="#d7a18c"
+        roughness={0.44}
+        clearcoat={0.22}
+        clearcoatRoughness={0.48}
+        sheen={0.18}
+        transparent
+        opacity={0.42}
+      />
+    </mesh>
+  );
+}
+
+function BloodAndMoistureVfx({ bloodLoss, caseStep }) {
+  const poolScale = Math.min(0.42, bloodLoss / 650);
+  const visiblePool = caseStep >= 2 ? 1 : 0.45;
+
+  return (
+    <group>
+      <mesh position={[0.2, 0.627, 0.02]} rotation={[-Math.PI / 2, 0, 0]} scale={[poolScale * visiblePool, poolScale * 0.55 * visiblePool, 1]}>
+        <circleGeometry args={[0.42, 48]} />
+        <meshPhysicalMaterial color="#6d0614" roughness={0.08} metalness={0.02} clearcoat={1} clearcoatRoughness={0.05} transparent opacity={0.5} />
+      </mesh>
+      {[[-0.04, -0.08], [0.08, -0.18], [0.27, -0.02], [0.17, 0.12]].map(([x, z], index) => (
+        <mesh key={`${x}-${z}`} position={[x, 0.636 + index * 0.002, z]} rotation={[-Math.PI / 2, 0, 0]} scale={[1 + index * 0.25, 0.62, 1]}>
+          <circleGeometry args={[0.035, 24]} />
+          <meshPhysicalMaterial color="#8e1020" roughness={0.04} clearcoat={1} clearcoatRoughness={0.04} transparent opacity={caseStep >= 3 ? 0.42 : 0.18} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function CauterySmoke({ caseStep }) {
+  const particleRefs = useRef([]);
+  const particles = useMemo(
+    () =>
+      Array.from({ length: 18 }, (_, index) => ({
+        x: (seededUnit(index, 2) - 0.5) * 0.16,
+        z: (seededUnit(index, 5) - 0.5) * 0.12,
+        delay: index * 0.17,
+        size: 0.025 + seededUnit(index, 8) * 0.04,
+      })),
+    [],
+  );
+
+  useFrame(({ clock }) => {
+    if (caseStep < 4) return;
+    particleRefs.current.forEach((particle, index) => {
+      if (!particle) return;
+      const config = particles[index];
+      const life = (clock.elapsedTime * 0.42 + config.delay) % 1;
+      particle.position.set(0.12 + config.x + life * 0.05, 0.86 + life * 0.46, -0.06 + config.z);
+      particle.scale.setScalar(config.size * (1 + life * 2.4));
+      particle.material.opacity = (1 - life) * 0.18;
+    });
+  });
+
+  if (caseStep < 4) return null;
+
+  return (
+    <group>
+      {particles.map((particle, index) => (
+        <mesh
+          key={`${particle.x}-${particle.z}`}
+          ref={(element) => {
+            particleRefs.current[index] = element;
+          }}
+        >
+          <sphereGeometry args={[1, 10, 10]} />
+          <meshStandardMaterial color="#d0d0c8" transparent opacity={0.12} depthWrite={false} />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -346,6 +551,7 @@ function ProcedureStepEffects({ caseStep }) {
             </mesh>
           ))}
           <pointLight position={[0.12, 0.86, -0.06]} color="#ffae5a" intensity={2.2} distance={1.1} />
+          <CauterySmoke caseStep={caseStep} />
         </>
       )}
       {caseStep >= 5 && (
@@ -372,6 +578,11 @@ function ProcedureStepEffects({ caseStep }) {
 
 function PatientModel({ bloodLoss, caseStep }) {
   const breathing = useRef();
+  const skinTexture = useProceduralTexture('skin');
+  const drapeTexture = useProceduralTexture('drape');
+  const tissueTexture = useProceduralTexture('tissue');
+  const liverTexture = useProceduralTexture('liver');
+
   useFrame(({ clock }) => {
     const pulse = 1 + Math.sin(clock.elapsedTime * 2.1) * 0.015;
     if (breathing.current) breathing.current.scale.set(1, 1, pulse);
@@ -383,19 +594,19 @@ function PatientModel({ bloodLoss, caseStep }) {
     <group position={[0, 0.78, 0]}>
       <mesh position={[0, 0.68, 0.18]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <ringGeometry args={[0.5, 0.88, 64]} />
-        <meshStandardMaterial color="#137c84" roughness={0.5} side={2} />
+        <meshStandardMaterial map={drapeTexture} color="#82e3e9" roughness={0.82} bumpMap={drapeTexture} bumpScale={0.018} side={2} />
       </mesh>
       <mesh position={[0, 0.675, 0.18]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[2.4, 2.9]} />
-        <meshStandardMaterial color="#1e8f98" roughness={0.58} transparent opacity={0.62} />
+        <meshStandardMaterial map={drapeTexture} color="#b0fbff" roughness={0.78} bumpMap={drapeTexture} bumpScale={0.014} transparent opacity={0.68} />
       </mesh>
       <mesh ref={breathing} position={[0, 0.12, -0.1]} rotation={[Math.PI / 2, 0, 0]} castShadow>
         <capsuleGeometry args={[0.46, 1.55, 12, 32]} />
-        <meshStandardMaterial color="#c58d74" roughness={0.72} />
+        <meshPhysicalMaterial map={skinTexture} color="#d7a18c" roughness={0.46} clearcoat={0.16} clearcoatRoughness={0.58} sheen={0.22} />
       </mesh>
       <mesh position={[0, 0.2, -1.12]} castShadow>
         <sphereGeometry args={[0.32, 32, 32]} />
-        <meshStandardMaterial color="#c99982" roughness={0.68} />
+        <meshPhysicalMaterial map={skinTexture} color="#d9aa92" roughness={0.48} clearcoat={0.12} clearcoatRoughness={0.54} sheen={0.22} />
       </mesh>
       <mesh position={[-0.11, 0.27, -1.39]}>
         <sphereGeometry args={[0.025, 12, 12]} />
@@ -417,23 +628,24 @@ function PatientModel({ bloodLoss, caseStep }) {
       ))}
       <mesh position={[-0.48, 0.1, -0.12]} rotation={[Math.PI / 2, 0, 0.25]} castShadow>
         <capsuleGeometry args={[0.1, 1.2, 8, 18]} />
-        <meshStandardMaterial color="#c58d74" roughness={0.72} />
+        <meshPhysicalMaterial map={skinTexture} color="#d7a18c" roughness={0.5} clearcoat={0.12} clearcoatRoughness={0.58} />
       </mesh>
       <mesh position={[0.48, 0.1, -0.12]} rotation={[Math.PI / 2, 0, -0.25]} castShadow>
         <capsuleGeometry args={[0.1, 1.2, 8, 18]} />
-        <meshStandardMaterial color="#c58d74" roughness={0.72} />
+        <meshPhysicalMaterial map={skinTexture} color="#d7a18c" roughness={0.5} clearcoat={0.12} clearcoatRoughness={0.58} />
       </mesh>
       <mesh position={[0, 0.62, -0.08]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.24, 0.42, 48]} />
-        <meshStandardMaterial color="#1c938e" roughness={0.44} side={2} />
+        <meshStandardMaterial map={drapeTexture} color="#8bf2f0" roughness={0.7} side={2} />
       </mesh>
+      <SoftTissueLayer caseStep={caseStep} />
       <mesh position={[-0.1, 0.68, -0.16]} rotation={[0.12, 0.25, -0.08]} castShadow>
         <sphereGeometry args={[0.23, 32, 24]} />
-        <meshStandardMaterial color="#5a2f19" roughness={0.64} />
+        <meshPhysicalMaterial map={liverTexture} color="#6e351e" roughness={0.24} clearcoat={0.7} clearcoatRoughness={0.16} />
       </mesh>
       <mesh position={[0.18, 0.71, -0.16]} rotation={[0.1, 0, -0.28]} castShadow>
         <capsuleGeometry args={[0.075, 0.32, 8, 20]} />
-        <meshStandardMaterial color="#4b8f35" roughness={0.48} />
+        <meshPhysicalMaterial map={tissueTexture} color="#4b8f35" roughness={0.18} clearcoat={0.85} clearcoatRoughness={0.1} />
       </mesh>
       <mesh position={[0.18, 0.71, -0.16]} rotation={[0.1, 0, -0.28]}>
         <capsuleGeometry args={[0.096, 0.36, 8, 20]} />
@@ -445,8 +657,9 @@ function PatientModel({ bloodLoss, caseStep }) {
       </mesh>
       <mesh position={[0.18, 0.76, 0.02]} scale={[bleedScale, bleedScale, bleedScale]}>
         <sphereGeometry args={[0.08, 32, 32]} />
-        <meshStandardMaterial color="#9f0d1e" roughness={0.2} metalness={0.05} />
+        <meshPhysicalMaterial color="#9f0d1e" roughness={0.05} metalness={0.02} clearcoat={1} clearcoatRoughness={0.04} />
       </mesh>
+      <BloodAndMoistureVfx bloodLoss={bloodLoss} caseStep={caseStep} />
       <ProcedureStepEffects caseStep={caseStep} />
       {[[-0.32, 0.61, 0.22], [0.38, 0.61, 0.12], [0.03, 0.61, 0.46]].map(([x, y, z]) => (
         <mesh key={`${x}-${z}`} position={[x, y, z]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -681,6 +894,12 @@ function OperatingTheaterScene() {
       <Suspense fallback={null}>
         <FirstPersonCamera />
         <color attach="background" args={['#071016']} />
+        <Environment resolution={128}>
+          <Lightformer intensity={3.6} position={[0, 3.4, -2.4]} scale={[5, 1.2, 1]} />
+          <Lightformer intensity={1.6} position={[-3, 1.8, 0.6]} scale={[1.2, 2.5, 1]} color="#dff8ff" />
+          <Lightformer intensity={1.3} position={[3, 1.5, 1.8]} scale={[1.2, 2, 1]} color="#baf6ff" />
+        </Environment>
+        <SoftShadows size={18} samples={14} focus={0.42} />
         <ambientLight intensity={0.8} />
         <directionalLight position={[3, 5, 4]} intensity={2.8} castShadow />
         <RoomShell />
@@ -688,7 +907,7 @@ function OperatingTheaterScene() {
 
         <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]}>
           <planeGeometry args={[8, 7]} />
-          <meshStandardMaterial color="#18242b" roughness={0.65} />
+          <meshStandardMaterial color="#18242b" roughness={0.65} transparent opacity={0.36} />
         </mesh>
         <mesh position={[0, 0.48, 0]} castShadow>
           <boxGeometry args={[1.72, 0.24, 3.25]} />
@@ -749,6 +968,11 @@ function OperatingTheaterScene() {
         </group>
 
         <OrbitControls enablePan={false} enableZoom={false} enableRotate={false} />
+        <EffectComposer multisampling={0}>
+          <SSAO samples={16} radius={0.12} intensity={18} luminanceInfluence={0.42} />
+          <Bloom intensity={0.22} luminanceThreshold={0.72} luminanceSmoothing={0.28} mipmapBlur />
+          <Vignette offset={0.18} darkness={0.42} />
+        </EffectComposer>
       </Suspense>
     </Canvas>
   );
@@ -1033,6 +1257,26 @@ function PlanningPanel() {
   );
 }
 
+function AssetPipelinePanel() {
+  return (
+    <section className="panel asset-panel" aria-label="Photoreal asset pipeline">
+      <div className="panel-heading">
+        <ImageUp aria-hidden="true" />
+        <h2>Photoreal Asset Pipeline</h2>
+      </div>
+      <div className="asset-list">
+        {assetPipeline.map((asset) => (
+          <div className="asset-row" key={asset.slot}>
+            <strong>{asset.slot}</strong>
+            <span>{asset.target}</span>
+            <em>{asset.status}</em>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function InstrumentPanel() {
   return (
     <section className="panel" aria-label="Instrument interaction">
@@ -1252,6 +1496,7 @@ function App() {
         <CollaborationPanel />
         <PlanningPanel />
         <AnalyticsPanel />
+        <AssetPipelinePanel />
       </section>
     </main>
   );
