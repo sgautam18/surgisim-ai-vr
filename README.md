@@ -27,7 +27,7 @@ Open `http://127.0.0.1:5173/`.
 
 ## Meta Quest Browser Test
 
-The web app includes a WebXR entry button for Meta Quest Browser. After pushing to `main`, GitHub Actions deploys the VR-ready browser build to:
+The web app includes a WebXR entry button for Meta Quest Browser. The VR-ready browser build is published from the `gh-pages` branch to:
 
 ```text
 https://sgautam18.github.io/surgisim-ai-vr/
