@@ -21,9 +21,11 @@ import {
   Hospital,
   Layers3,
   Mic,
+  Pause,
   MonitorCog,
   Play,
   Radio,
+  RotateCcw,
   ScanLine,
   Scissors,
   ShieldCheck,
@@ -141,6 +143,15 @@ const gallbladderCase = [
   },
 ];
 
+const recordingTimeline = [
+  { stamp: '00:00', cue: 'OT time-out', metric: 'Sterile field verified' },
+  { stamp: '00:18', cue: 'Camera entry', metric: '12 mmHg insufflation' },
+  { stamp: '00:39', cue: 'Critical view', metric: 'CBD danger zone highlighted' },
+  { stamp: '01:02', cue: 'Clip application', metric: 'Cystic duct secured' },
+  { stamp: '01:28', cue: 'Liver-bed dissection', metric: 'Thermal spread controlled' },
+  { stamp: '01:54', cue: 'Specimen extraction', metric: 'Hemostasis confirmed' },
+];
+
 const skinMarks = [
   [-0.2, 0.62, -0.38, 0.012],
   [0.18, 0.63, -0.28, 0.009],
@@ -162,6 +173,7 @@ const useSimulation = create((set) => ({
   voice: true,
   handTracking: true,
   haptics: true,
+  replayActive: false,
   setProcedure: (activeProcedure) =>
     set({
       activeProcedure,
@@ -169,6 +181,7 @@ const useSimulation = create((set) => ({
       caseStep: 0,
       bloodLoss: activeProcedure.difficulty,
       timer: 12,
+      replayActive: false,
     }),
   setEmergency: (emergency) => set({ emergency, bloodLoss: Math.round(emergency.severity * 2.4) }),
   advanceCase: () =>
@@ -182,6 +195,9 @@ const useSimulation = create((set) => ({
       };
     }),
   resetCase: () => set({ caseStep: 0, phase: gallbladderCase[0].title, bloodLoss: 115, timer: 18 }),
+  playReplay: () => set({ replayActive: true, caseStep: 0, phase: gallbladderCase[0].title, bloodLoss: 115, timer: 18 }),
+  pauseReplay: () => set({ replayActive: false }),
+  finishReplay: () => set({ replayActive: false }),
   toggleVoice: () => set((state) => ({ voice: !state.voice })),
   toggleTracking: () => set((state) => ({ handTracking: !state.handTracking })),
   toggleHaptics: () => set((state) => ({ haptics: !state.haptics })),
@@ -268,7 +284,93 @@ function RoomShell() {
   );
 }
 
-function PatientModel({ bloodLoss }) {
+function ProcedureStepEffects({ caseStep }) {
+  return (
+    <group>
+      {caseStep >= 1 && (
+        <>
+          <mesh position={[0.03, 0.82, 0.42]} rotation={[1.25, 0, 0]}>
+            <cylinderGeometry args={[0.025, 0.025, 1.18, 18]} />
+            <meshStandardMaterial color="#dce6eb" metalness={0.88} roughness={0.18} />
+          </mesh>
+          <mesh position={[0.03, 0.62, 0.46]} rotation={[-Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.12, 0.012, 18, 54]} />
+            <meshStandardMaterial color="#5cc8ff" emissive="#0c405a" emissiveIntensity={0.8} />
+          </mesh>
+          <mesh position={[0, 0.82, -0.02]} rotation={[-Math.PI / 2, 0, 0]}>
+            <sphereGeometry args={[0.6, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
+            <meshStandardMaterial color="#c9fbff" transparent opacity={0.12} roughness={0.1} />
+          </mesh>
+        </>
+      )}
+      {caseStep >= 2 && (
+        <>
+          <mesh position={[-0.15, 0.96, -0.36]} rotation={[0.68, -0.08, -0.3]}>
+            <cylinderGeometry args={[0.018, 0.018, 0.58, 18]} />
+            <meshStandardMaterial color="#f0f5f7" metalness={0.86} roughness={0.16} />
+          </mesh>
+          <mesh position={[-0.34, 1.16, -0.52]} rotation={[0.38, -0.2, 0.7]}>
+            <coneGeometry args={[0.08, 0.18, 24]} />
+            <meshStandardMaterial color="#f0f5f7" metalness={0.7} roughness={0.22} />
+          </mesh>
+          <mesh position={[0.05, 0.75, -0.02]} rotation={[-Math.PI / 2, 0, 0.24]}>
+            <ringGeometry args={[0.18, 0.22, 48]} />
+            <meshStandardMaterial color="#ffcf5a" emissive="#3f2d04" emissiveIntensity={0.8} transparent opacity={0.74} side={2} />
+          </mesh>
+        </>
+      )}
+      {caseStep >= 3 && (
+        <>
+          {[
+            [0.09, 0.73, -0.01],
+            [0.15, 0.71, -0.03],
+            [0.24, 0.72, -0.06],
+          ].map(([x, y, z]) => (
+            <mesh key={`clip-${x}`} position={[x, y, z]} rotation={[0.3, 0.2, 0.55]}>
+              <boxGeometry args={[0.1, 0.025, 0.035]} />
+              <meshStandardMaterial color="#f4d56a" metalness={0.82} roughness={0.18} />
+            </mesh>
+          ))}
+          <mesh position={[0.2, 0.74, 0.01]}>
+            <sphereGeometry args={[0.055, 24, 24]} />
+            <meshStandardMaterial color="#5cc8ff" emissive="#0a577c" emissiveIntensity={1.2} transparent opacity={0.82} />
+          </mesh>
+        </>
+      )}
+      {caseStep >= 4 && (
+        <>
+          {[-0.08, 0.01, 0.1, 0.19].map((x, index) => (
+            <mesh key={`cautery-${x}`} position={[x, 0.8 + index * 0.006, -0.17 + index * 0.03]} rotation={[-Math.PI / 2, 0, 0.2]}>
+              <ringGeometry args={[0.035, 0.046, 18]} />
+              <meshStandardMaterial color="#ff9f43" emissive="#6f2c05" emissiveIntensity={1.2} transparent opacity={0.74} side={2} />
+            </mesh>
+          ))}
+          <pointLight position={[0.12, 0.86, -0.06]} color="#ffae5a" intensity={2.2} distance={1.1} />
+        </>
+      )}
+      {caseStep >= 5 && (
+        <>
+          <mesh position={[0.23, 0.82, 0.28]} rotation={[0.25, 0.1, -0.25]}>
+            <sphereGeometry args={[0.18, 32, 20]} />
+            <meshStandardMaterial color="#d8eef1" transparent opacity={0.38} roughness={0.18} />
+          </mesh>
+          <mesh position={[0.21, 0.81, 0.28]} rotation={[0.2, 0.1, -0.3]}>
+            <capsuleGeometry args={[0.06, 0.22, 8, 18]} />
+            <meshStandardMaterial color="#4b8f35" roughness={0.52} />
+          </mesh>
+          {[[-0.32, 0.63, 0.22], [0.38, 0.63, 0.12], [0.03, 0.63, 0.46]].map(([x, y, z]) => (
+            <mesh key={`closure-${x}`} position={[x, y, z]} rotation={[-Math.PI / 2, 0, 0]}>
+              <boxGeometry args={[0.16, 0.035, 0.008]} />
+              <meshStandardMaterial color="#f3efe5" roughness={0.62} />
+            </mesh>
+          ))}
+        </>
+      )}
+    </group>
+  );
+}
+
+function PatientModel({ bloodLoss, caseStep }) {
   const breathing = useRef();
   useFrame(({ clock }) => {
     const pulse = 1 + Math.sin(clock.elapsedTime * 2.1) * 0.015;
@@ -345,6 +447,7 @@ function PatientModel({ bloodLoss }) {
         <sphereGeometry args={[0.08, 32, 32]} />
         <meshStandardMaterial color="#9f0d1e" roughness={0.2} metalness={0.05} />
       </mesh>
+      <ProcedureStepEffects caseStep={caseStep} />
       {[[-0.32, 0.61, 0.22], [0.38, 0.61, 0.12], [0.03, 0.61, 0.46]].map(([x, y, z]) => (
         <mesh key={`${x}-${z}`} position={[x, y, z]} rotation={[-Math.PI / 2, 0, 0]}>
           <torusGeometry args={[0.075, 0.012, 16, 42]} />
@@ -411,7 +514,11 @@ function MonitorBank({ emergency }) {
   );
 }
 
-function LaparoscopicDisplay() {
+function LaparoscopicDisplay({ caseStep }) {
+  const clipVisible = caseStep >= 3;
+  const thermalVisible = caseStep >= 4;
+  const bagVisible = caseStep >= 5;
+
   return (
     <group position={[-1.72, 1.72, -1.92]} rotation={[0, 0.42, 0]}>
       <mesh castShadow>
@@ -438,6 +545,30 @@ function LaparoscopicDisplay() {
         <ringGeometry args={[0.04, 0.055, 24]} />
         <meshStandardMaterial color="#5cc8ff" emissive="#0d4661" emissiveIntensity={1.1} />
       </mesh>
+      {clipVisible && (
+        <>
+          <mesh position={[0.06, -0.13, -0.102]} rotation={[0, 0, 0.55]}>
+            <boxGeometry args={[0.1, 0.025, 0.03]} />
+            <meshStandardMaterial color="#f4d56a" metalness={0.7} roughness={0.18} />
+          </mesh>
+          <mesh position={[0.18, -0.15, -0.102]} rotation={[0, 0, 0.55]}>
+            <boxGeometry args={[0.1, 0.025, 0.03]} />
+            <meshStandardMaterial color="#f4d56a" metalness={0.7} roughness={0.18} />
+          </mesh>
+        </>
+      )}
+      {thermalVisible && (
+        <mesh position={[-0.05, 0.2, -0.105]} rotation={[0, 0, 0.1]}>
+          <ringGeometry args={[0.05, 0.065, 22]} />
+          <meshStandardMaterial color="#ff9f43" emissive="#6f2c05" emissiveIntensity={1.3} transparent opacity={0.76} />
+        </mesh>
+      )}
+      {bagVisible && (
+        <mesh position={[0.28, -0.02, -0.106]}>
+          <circleGeometry args={[0.13, 32]} />
+          <meshStandardMaterial color="#d8eef1" transparent opacity={0.3} />
+        </mesh>
+      )}
       <Text position={[0, -0.43, -0.1]} fontSize={0.045} color="#c8f7ff" anchorX="center">
         laparoscopic camera feed
       </Text>
@@ -471,7 +602,7 @@ function IvStand() {
   );
 }
 
-function SurgeonHands() {
+function SurgeonHands({ caseStep }) {
   const left = useRef();
   const right = useRef();
   useFrame(({ clock }) => {
@@ -482,7 +613,7 @@ function SurgeonHands() {
 
   return (
     <group position={[0, 0, 0]}>
-      <group ref={left} position={[-0.72, 0.55, 1.15]} rotation={[0.1, 0.18, 0.24]}>
+      <group ref={left} position={[-0.72, 0.55, 1.15]} rotation={[0.1, 0.18 + caseStep * 0.02, 0.24]}>
         <mesh castShadow>
           <capsuleGeometry args={[0.08, 0.52, 8, 18]} />
           <meshStandardMaterial color="#b97b64" roughness={0.62} />
@@ -491,9 +622,9 @@ function SurgeonHands() {
           <boxGeometry args={[0.2, 0.08, 0.08]} />
           <meshStandardMaterial color="#0a6b72" roughness={0.5} />
         </mesh>
-        <Instrument position={[0.24, 0.02, -0.22]} rotation={[0, -0.4, -0.25]} color="#dce5ea" label="left grasper" />
+        <Instrument position={[0.24, 0.02, -0.22]} rotation={[0, -0.4, -0.25]} color="#dce5ea" label={caseStep >= 5 ? 'specimen bag' : 'left grasper'} />
       </group>
-      <group ref={right} position={[0.72, 0.54, 1.16]} rotation={[0.08, -0.16, -0.2]}>
+      <group ref={right} position={[0.72, 0.54, 1.16]} rotation={[0.08, -0.16 - caseStep * 0.018, -0.2]}>
         <mesh castShadow>
           <capsuleGeometry args={[0.08, 0.52, 8, 18]} />
           <meshStandardMaterial color="#b97b64" roughness={0.62} />
@@ -502,7 +633,12 @@ function SurgeonHands() {
           <boxGeometry args={[0.2, 0.08, 0.08]} />
           <meshStandardMaterial color="#0a6b72" roughness={0.5} />
         </mesh>
-        <Instrument position={[-0.24, 0.02, -0.22]} rotation={[0, 0.36, 0.22]} color="#f1d36c" label="clip applier" />
+        <Instrument
+          position={[-0.24, 0.02, -0.22]}
+          rotation={[0, 0.36, 0.22]}
+          color={caseStep >= 4 ? '#ff9f43' : '#f1d36c'}
+          label={caseStep >= 4 ? 'hook cautery' : 'clip applier'}
+        />
       </group>
       <mesh position={[0, 0.42, 0.35]} rotation={[1.23, 0, 0]}>
         <cylinderGeometry args={[0.018, 0.018, 1.72, 18]} />
@@ -538,7 +674,7 @@ function DeviceCart({ position, rotation, label, color }) {
 }
 
 function OperatingTheaterScene() {
-  const { bloodLoss, emergency, handTracking, haptics } = useSimulation();
+  const { bloodLoss, caseStep, emergency, handTracking, haptics } = useSimulation();
 
   return (
     <Canvas shadows dpr={[1, 1.7]} gl={{ antialias: true }} data-testid="ot-canvas">
@@ -562,8 +698,8 @@ function OperatingTheaterScene() {
           <boxGeometry args={[1.82, 0.08, 3.42]} />
           <meshStandardMaterial color="#2f8f96" roughness={0.42} />
         </mesh>
-        <PatientModel bloodLoss={bloodLoss} />
-        <SurgeonHands />
+        <PatientModel bloodLoss={bloodLoss} caseStep={caseStep} />
+        <SurgeonHands caseStep={caseStep} />
 
         <group position={[-1.95, 0.74, 0.45]}>
           <mesh>
@@ -575,7 +711,7 @@ function OperatingTheaterScene() {
         </group>
 
         <MonitorBank emergency={emergency} />
-        <LaparoscopicDisplay />
+        <LaparoscopicDisplay caseStep={caseStep} />
         <IvStand />
         <DeviceCart position={[2.65, 1.05, 0.45]} rotation={[0, -0.75, 0]} label="insufflator 12 mmHg" color="#0f5364" />
         <DeviceCart position={[-2.65, 1.05, -0.35]} rotation={[0, 0.75, 0]} label="electrosurgical unit" color="#563719" />
@@ -942,9 +1078,23 @@ function DevicePanel() {
 }
 
 function GallbladderTestCase() {
-  const { caseStep, advanceCase, resetCase } = useSimulation();
+  const { caseStep, advanceCase, finishReplay, pauseReplay, playReplay, replayActive, resetCase } = useSimulation();
   const current = gallbladderCase[caseStep];
   const progress = Math.round(((caseStep + 1) / gallbladderCase.length) * 100);
+
+  useEffect(() => {
+    if (!replayActive) return undefined;
+
+    const replayTimer = window.setTimeout(() => {
+      if (caseStep >= gallbladderCase.length - 1) {
+        finishReplay();
+        return;
+      }
+      advanceCase();
+    }, 2600);
+
+    return () => window.clearTimeout(replayTimer);
+  }, [advanceCase, caseStep, finishReplay, replayActive]);
 
   return (
     <section className="panel test-case-panel" aria-label="Gall bladder removal first-person test case">
@@ -975,15 +1125,50 @@ function GallbladderTestCase() {
         ))}
       </ol>
       <div className="case-actions">
-        <button type="button" className="primary-action" onClick={advanceCase}>
-          <Play aria-hidden="true" />
-          Run next step
+        <button type="button" className="primary-action" onClick={replayActive ? pauseReplay : playReplay}>
+          {replayActive ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}
+          {replayActive ? 'Pause replay' : 'Play full replay'}
         </button>
-        <button type="button" className="secondary-action" onClick={resetCase}>
-          Reset
+        <button type="button" className="secondary-action" onClick={advanceCase}>
+          Next
+        </button>
+        <button type="button" className="secondary-action" onClick={resetCase} aria-label="Reset gall bladder replay">
+          <RotateCcw aria-hidden="true" />
         </button>
       </div>
+      <div className="recording-strip" aria-label="Laparoscopy operation recording timeline">
+        <div>
+          <Video aria-hidden="true" />
+          <strong>Operation recording</strong>
+        </div>
+        {recordingTimeline.map((item, index) => (
+          <span className={index <= caseStep ? 'active' : ''} key={item.stamp}>
+            <b>{item.stamp}</b>
+            <em>{item.cue}</em>
+            <small>{item.metric}</small>
+          </span>
+        ))}
+      </div>
     </section>
+  );
+}
+
+function RecordingHud() {
+  const { caseStep, replayActive } = useSimulation();
+  const current = gallbladderCase[caseStep];
+  const timeline = recordingTimeline[caseStep];
+
+  return (
+    <div className={replayActive ? 'recording-hud active' : 'recording-hud'} aria-label="Active recording overlay">
+      <div>
+        <span className="recording-dot" />
+        <strong>{replayActive ? 'Recording playback' : 'Recording paused'}</strong>
+      </div>
+      <p>{current.title}</p>
+      <small>
+        {timeline.stamp} / {recordingTimeline[recordingTimeline.length - 1].stamp} - {timeline.metric}
+      </small>
+    </div>
   );
 }
 
@@ -1037,6 +1222,7 @@ function App() {
         </aside>
 
         <section className="simulator-stage" aria-label="Immersive operating theater">
+          <RecordingHud />
           <div className="stage-toolbar">
             <div>
               <Gauge aria-hidden="true" />

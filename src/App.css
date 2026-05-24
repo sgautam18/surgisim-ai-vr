@@ -265,6 +265,7 @@
 }
 
 .simulator-stage {
+  position: relative;
   height: min(76vh, 780px);
   min-height: 660px;
   display: grid;
@@ -282,6 +283,8 @@
 
 .stage-toolbar,
 .stage-footer {
+  position: relative;
+  z-index: 2;
   justify-content: space-between;
   gap: 12px;
   padding: 10px 14px;
@@ -621,7 +624,7 @@
 
 .case-actions {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 8px;
   padding: 0 12px 12px;
 }
@@ -632,12 +635,127 @@
 }
 
 .secondary-action {
-  min-width: 72px;
+  min-width: 44px;
   border: 1px solid #26333b;
   border-radius: 6px;
   background: #0d171d;
   color: #dce8ef;
   cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 10px;
+}
+
+.secondary-action svg {
+  width: 16px;
+  height: 16px;
+}
+
+.recording-strip {
+  display: grid;
+  gap: 7px;
+  padding: 0 12px 12px;
+}
+
+.recording-strip > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #f4fbff;
+  font-size: 13px;
+}
+
+.recording-strip svg {
+  width: 16px;
+  height: 16px;
+  color: #5cc8ff;
+}
+
+.recording-strip > span {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 2px 8px;
+  padding: 7px 8px;
+  border: 1px solid #26333b;
+  border-radius: 6px;
+  background: #0f1a21;
+}
+
+.recording-strip > span.active {
+  border-color: rgba(135, 232, 176, 0.5);
+  background: rgba(135, 232, 176, 0.08);
+}
+
+.recording-strip b {
+  grid-row: span 2;
+  color: #87e8b0;
+  font-size: 12px;
+}
+
+.recording-strip em {
+  color: #e8f4f8;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.recording-strip small {
+  color: #8b9aa4;
+  font-size: 11px;
+}
+
+.recording-hud {
+  position: absolute;
+  top: 56px;
+  left: 14px;
+  z-index: 3;
+  max-width: min(360px, calc(100% - 28px));
+  padding: 10px 12px;
+  border: 1px solid rgba(92, 200, 255, 0.36);
+  border-radius: 8px;
+  background: rgba(7, 16, 22, 0.76);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+}
+
+.recording-hud.active {
+  border-color: rgba(255, 107, 122, 0.45);
+}
+
+.recording-hud > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.recording-hud strong {
+  color: #f4fbff;
+  font-size: 13px;
+}
+
+.recording-hud p {
+  margin: 7px 0 4px;
+  color: #dce8ef;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.recording-hud small {
+  color: #9aaab3;
+  font-size: 12px;
+}
+
+.recording-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #73828d;
+}
+
+.recording-hud.active .recording-dot {
+  background: #ff6b7a;
+  box-shadow: 0 0 0 5px rgba(255, 107, 122, 0.13);
 }
 
 .lower-grid {
