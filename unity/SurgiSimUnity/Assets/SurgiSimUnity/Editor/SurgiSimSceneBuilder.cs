@@ -12,6 +12,8 @@ namespace SurgiSim.UnityVisualization.Editor
         [MenuItem("SurgiSim/Build Operating Theater Scene")]
         public static void BuildOperatingTheaterScene()
         {
+            ConfigureZAnatomyImporters();
+
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             scene.name = "SurgiSimOperatingTheater";
 
@@ -27,6 +29,34 @@ namespace SurgiSim.UnityVisualization.Editor
             };
 
             Debug.Log("SurgiSim Unity operating theater scene generated.");
+        }
+
+        private static void ConfigureZAnatomyImporters()
+        {
+            const string root = "Assets/SurgiSimUnity/Resources/ZAnatomy/FBX";
+            if (!Directory.Exists(root))
+            {
+                return;
+            }
+
+            foreach (var assetGuid in AssetDatabase.FindAssets("t:Model", new[] { root }))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(assetGuid);
+                if (AssetImporter.GetAtPath(path) is not ModelImporter importer)
+                {
+                    continue;
+                }
+
+                importer.importAnimation = false;
+                importer.importBlendShapes = false;
+                importer.importCameras = false;
+                importer.importLights = false;
+                importer.meshCompression = ModelImporterMeshCompression.Medium;
+                importer.optimizeMeshPolygons = true;
+                importer.optimizeMeshVertices = true;
+                importer.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
+                importer.SaveAndReimport();
+            }
         }
 
         [MenuItem("SurgiSim/Build macOS Demo App")]

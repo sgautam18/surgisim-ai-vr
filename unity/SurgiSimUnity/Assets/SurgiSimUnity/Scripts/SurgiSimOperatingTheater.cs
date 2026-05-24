@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -28,7 +29,7 @@ namespace SurgiSim.UnityVisualization
         private readonly List<GameObject> clips = new();
         private readonly List<GameObject> charringMarks = new();
         private readonly List<GameObject> anatomyRoots = new();
-        private readonly string[] anatomyModes = { "Gall Bladder", "Heart", "Upper Abdomen" };
+        private readonly string[] anatomyModes = { "Gall Bladder", "Heart", "Upper Abdomen", "Z-Anatomy Atlas" };
         private Material skinMaterial;
         private Material wetTissueMaterial;
         private Material liverMaterial;
@@ -51,6 +52,17 @@ namespace SurgiSim.UnityVisualization
         private GameObject gallbladderRoot;
         private GameObject heartRoot;
         private GameObject abdomenAtlasRoot;
+        private GameObject zAnatomyRoot;
+        private GameObject zAnatomyCardioLayer;
+        private GameObject zAnatomyJointsLayer;
+        private GameObject zAnatomyLymphoidLayer;
+        private GameObject zAnatomyMuscularLayer;
+        private GameObject zAnatomyNervousLayer;
+        private GameObject zAnatomyReferencesLayer;
+        private GameObject zAnatomyRegionsLayer;
+        private GameObject zAnatomySkeletalLayer;
+        private GameObject zAnatomyVisceralLayer;
+        private bool zAnatomyLoaded;
         private ParticleSystem smokeSystem;
         private ParticleSystem dropletSystem;
         private Light cauteryGlow;
@@ -87,6 +99,7 @@ namespace SurgiSim.UnityVisualization
                 BuildPatientAndAnatomy();
                 BuildHeartAnatomyMode();
                 BuildUpperAbdomenMode();
+                BuildZAnatomyAtlas();
                 BuildSurgicalDevices();
                 BuildSurgicalLights();
                 BuildFirstPersonTools();
@@ -95,6 +108,17 @@ namespace SurgiSim.UnityVisualization
                 SetStep(0);
                 SetAnatomyMode(0);
                 initialized = true;
+                var requestedMode = GetCommandLineValue("-surgisim-mode");
+                if (int.TryParse(requestedMode, out var mode))
+                {
+                    SetAnatomyMode(mode);
+                }
+
+                var capturePath = GetCommandLineValue("-surgisim-capture");
+                if (!string.IsNullOrWhiteSpace(capturePath))
+                {
+                    StartCoroutine(CapturePreview(capturePath));
+                }
             }
             catch (System.Exception exception)
             {
@@ -136,13 +160,13 @@ namespace SurgiSim.UnityVisualization
                 return;
             }
 
-            var panel = new Rect(22, 22, 470, 152);
+            var panel = new Rect(22, 22, 600, 152);
             GUI.color = new Color(0.02f, 0.05f, 0.07f, 0.86f);
             GUI.DrawTexture(panel, Texture2D.whiteTexture);
             GUI.color = Color.white;
-            GUI.Label(new Rect(42, 38, 430, 24), "SurgiSim Unity OT - Laparoscopic Cholecystectomy");
-            GUI.Label(new Rect(42, 66, 430, 24), $"Scene: {anatomyModes[anatomyMode]} | Step {currentStep + 1}/6: {stepTitles[currentStep]}");
-            GUI.Label(new Rect(42, 94, 430, 48), stepCues[currentStep]);
+            GUI.Label(new Rect(42, 38, 560, 24), "SurgiSim Unity OT - Laparoscopic Cholecystectomy");
+            GUI.Label(new Rect(42, 66, 560, 24), $"Scene: {anatomyModes[anatomyMode]} | Step {currentStep + 1}/6: {stepTitles[currentStep]}");
+            GUI.Label(new Rect(42, 94, 560, 48), zAnatomyLoaded ? stepCues[currentStep] : $"{stepCues[currentStep]}  | Z-Anatomy assets not found; using procedural fallback.");
 
             if (GUI.Button(new Rect(42, 132, 82, 26), AutoPlay ? "Pause" : "Replay"))
             {
@@ -160,19 +184,24 @@ namespace SurgiSim.UnityVisualization
                 SetStep(0);
             }
 
-            if (GUI.Button(new Rect(224, 132, 92, 26), "Gall"))
+            if (GUI.Button(new Rect(224, 132, 72, 26), "Gall"))
             {
                 SetAnatomyMode(0);
             }
 
-            if (GUI.Button(new Rect(324, 132, 82, 26), "Heart"))
+            if (GUI.Button(new Rect(304, 132, 72, 26), "Heart"))
             {
                 SetAnatomyMode(1);
             }
 
-            if (GUI.Button(new Rect(414, 132, 82, 26), "Abd"))
+            if (GUI.Button(new Rect(384, 132, 72, 26), "Abd"))
             {
                 SetAnatomyMode(2);
+            }
+
+            if (GUI.Button(new Rect(464, 132, 86, 26), "Atlas"))
+            {
+                SetAnatomyMode(3);
             }
         }
 
@@ -222,6 +251,7 @@ namespace SurgiSim.UnityVisualization
 
             ParentTo(CreateBox("Fenestrated sterile drape", new Vector3(0, 1.31f, 0.08f), new Vector3(2.7f, 0.025f, 2.65f), drapeMaterial), gallbladderRoot);
             ParentTo(CreateTorusProxy("Abdominal surgical opening", new Vector3(0, 1.345f, 0.07f), new Vector3(0.88f, 0.04f, 0.62f), drapeMaterial), gallbladderRoot);
+            BuildAbdominalAccessLayers(gallbladderRoot);
             abdomenSurface = BuildAbdomenMesh();
             ParentTo(abdomenSurface, gallbladderRoot);
 
@@ -246,6 +276,7 @@ namespace SurgiSim.UnityVisualization
 
             ParentTo(CreateBox("Open chest sterile drape", new Vector3(0, 1.31f, -0.28f), new Vector3(2.45f, 0.025f, 2.2f), drapeMaterial), heartRoot);
             ParentTo(CreateTorusProxy("Sternotomy opening", new Vector3(0, 1.36f, -0.3f), new Vector3(0.66f, 0.028f, 0.42f), wetTissueMaterial), heartRoot);
+            BuildSternotomyAccessLayers(heartRoot);
 
             for (var i = -3; i <= 3; i++)
             {
@@ -287,6 +318,193 @@ namespace SurgiSim.UnityVisualization
             ParentTo(CreateEllipsoid("Gall bladder under liver", new Vector3(0.46f, 1.57f, -0.17f), new Vector3(0.1f, 0.22f, 0.08f), gallbladderMaterial), abdomenAtlasRoot);
             ParentTo(CreateCylinderBetween("Common bile duct", new Vector3(0.42f, 1.53f, -0.08f), new Vector3(0.24f, 1.48f, 0.18f), 0.016f, PbrMaterial("Bile duct", new Color(0.82f, 0.72f, 0.36f), 0, 0.18f, null)), abdomenAtlasRoot);
             ParentTo(CreateTorusProxy("Transverse colon", new Vector3(0, 1.37f, 0.42f), new Vector3(0.72f, 0.035f, 0.14f), PbrMaterial("Colon", new Color(0.72f, 0.4f, 0.25f), 0, 0.34f, null)), abdomenAtlasRoot);
+        }
+
+        private void BuildAbdominalAccessLayers(GameObject root)
+        {
+            var skinEdge = CreateTorusProxy("Opened skin edge with bevel", new Vector3(0, 1.374f, 0.08f), new Vector3(0.52f, 0.028f, 0.36f), skinMaterial);
+            ParentTo(skinEdge, root);
+            ParentTo(CreateTorusProxy("Subcutaneous fat layer", new Vector3(0, 1.383f, 0.08f), new Vector3(0.44f, 0.026f, 0.29f), PbrMaterial("Yellow subcutaneous fat", new Color(0.96f, 0.72f, 0.28f), 0f, 0.28f, MakeNoiseTexture(new Color(0.72f, 0.46f, 0.16f), new Color(1f, 0.86f, 0.48f), 128, 61))), root);
+            ParentTo(CreateTorusProxy("Abdominal muscle layer", new Vector3(0, 1.392f, 0.08f), new Vector3(0.34f, 0.024f, 0.22f), wetTissueMaterial), root);
+            ParentTo(CreateTorusProxy("Peritoneal membrane rim", new Vector3(0, 1.401f, 0.08f), new Vector3(0.25f, 0.016f, 0.16f), TransparentMaterial("Peritoneum sheen", new Color(0.9f, 0.82f, 0.72f, 0.5f), 0f, 0.1f)), root);
+
+            var leftRetractor = CreateCylinderBetween("Left abdominal retractor", new Vector3(-0.62f, 1.43f, 0.04f), new Vector3(-0.18f, 1.43f, 0.04f), 0.018f, metalMaterial);
+            var rightRetractor = CreateCylinderBetween("Right abdominal retractor", new Vector3(0.62f, 1.43f, 0.04f), new Vector3(0.18f, 1.43f, 0.04f), 0.018f, metalMaterial);
+            ParentTo(leftRetractor, root);
+            ParentTo(rightRetractor, root);
+        }
+
+        private void BuildSternotomyAccessLayers(GameObject root)
+        {
+            var bone = PbrMaterial("Cut sternum cancellous bone", new Color(0.86f, 0.78f, 0.62f), 0f, 0.36f, MakeNoiseTexture(new Color(0.58f, 0.45f, 0.32f), new Color(0.96f, 0.88f, 0.72f), 128, 67));
+            ParentTo(CreateBox("Left split sternum", new Vector3(-0.1f, 1.43f, -0.3f), new Vector3(0.05f, 0.06f, 0.72f), bone), root);
+            ParentTo(CreateBox("Right split sternum", new Vector3(0.1f, 1.43f, -0.3f), new Vector3(0.05f, 0.06f, 0.72f), bone), root);
+            ParentTo(CreateTorusProxy("Opened pericardium", new Vector3(0, 1.52f, -0.29f), new Vector3(0.38f, 0.018f, 0.26f), TransparentMaterial("Pericardial membrane", new Color(0.9f, 0.72f, 0.66f, 0.42f), 0f, 0.12f)), root);
+            ParentTo(CreateCylinderBetween("Sternal retractor crossbar", new Vector3(-0.56f, 1.53f, -0.3f), new Vector3(0.56f, 1.53f, -0.3f), 0.018f, metalMaterial), root);
+            ParentTo(CreateCylinderBetween("Left sternal retractor blade", new Vector3(-0.32f, 1.5f, -0.58f), new Vector3(-0.32f, 1.5f, -0.02f), 0.014f, metalMaterial), root);
+            ParentTo(CreateCylinderBetween("Right sternal retractor blade", new Vector3(0.32f, 1.5f, -0.58f), new Vector3(0.32f, 1.5f, -0.02f), 0.014f, metalMaterial), root);
+        }
+
+        private void BuildZAnatomyAtlas()
+        {
+            zAnatomyRoot = new GameObject("Z-Anatomy imported anatomy layers");
+
+            zAnatomyRegionsLayer = CreateZAnatomyLayer("Regions of human body100", "Z-Anatomy translucent body regions", new Color(0.8f, 0.46f, 0.34f, 0.16f), 0.16f);
+            zAnatomySkeletalLayer = CreateZAnatomyLayer("SkeletalSystem100", "Z-Anatomy skeletal system", new Color(0.86f, 0.82f, 0.72f, 0.36f), 0.36f);
+            zAnatomyMuscularLayer = CreateZAnatomyLayer("MuscularSystem100", "Z-Anatomy muscular system", new Color(0.68f, 0.12f, 0.1f, 0.32f), 0.32f);
+            zAnatomyCardioLayer = CreateZAnatomyLayer("CardioVascular41", "Z-Anatomy cardiovascular system", new Color(0.9f, 0.04f, 0.08f, 0.7f), 0.7f);
+            zAnatomyVisceralLayer = CreateZAnatomyLayer("VisceralSystem100", "Z-Anatomy visceral organs", new Color(0.78f, 0.28f, 0.18f, 0.82f), 0.82f);
+            zAnatomyNervousLayer = CreateZAnatomyLayer("NervousSystem100", "Z-Anatomy nervous system", new Color(0.95f, 0.78f, 0.2f, 0.54f), 0.54f);
+            zAnatomyLymphoidLayer = CreateZAnatomyLayer("LymphoidOrgans100", "Z-Anatomy lymphoid organs", new Color(0.56f, 0.24f, 0.78f, 0.58f), 0.58f);
+            zAnatomyJointsLayer = CreateZAnatomyLayer("Joints100", "Z-Anatomy joints", new Color(0.24f, 0.74f, 0.92f, 0.44f), 0.44f);
+            zAnatomyReferencesLayer = CreateZAnatomyLayer("References100", "Z-Anatomy reference landmarks", new Color(0.94f, 0.94f, 0.96f, 0.52f), 0.52f);
+
+            zAnatomyLoaded = zAnatomyVisceralLayer != null || zAnatomyCardioLayer != null || zAnatomySkeletalLayer != null;
+            if (!zAnatomyLoaded)
+            {
+                var marker = CreateBox("Z-Anatomy assets missing marker", new Vector3(0, 1.45f, -0.05f), new Vector3(0.9f, 0.08f, 0.4f), PbrMaterial("Z-Anatomy missing marker", new Color(0.8f, 0.18f, 0.1f), 0f, 0.3f, null));
+                ParentTo(marker, zAnatomyRoot);
+                return;
+            }
+
+            FitZAnatomyLayersToPatient();
+            ConfigureZAnatomyVisibility();
+        }
+
+        private GameObject CreateZAnatomyLayer(string resourceName, string displayName, Color tint, float opacity)
+        {
+            var prefab = Resources.Load<GameObject>($"ZAnatomy/FBX/{resourceName}");
+            if (prefab == null)
+            {
+                Debug.LogWarning($"Z-Anatomy layer missing from Resources: {resourceName}");
+                return null;
+            }
+
+            var instance = Instantiate(prefab);
+            instance.name = displayName;
+            ParentTo(instance, zAnatomyRoot);
+            PrepareZAnatomyMaterials(instance, tint, opacity);
+            instance.SetActive(false);
+            return instance;
+        }
+
+        private void PrepareZAnatomyMaterials(GameObject layer, Color tint, float opacity)
+        {
+            var renderers = layer.GetComponentsInChildren<Renderer>(true);
+            foreach (var renderer in renderers)
+            {
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+
+                var sourceMaterials = renderer.sharedMaterials;
+                if (sourceMaterials == null || sourceMaterials.Length == 0)
+                {
+                    renderer.sharedMaterial = TransparentMaterial($"{layer.name} material", tint, 0f, 0.18f);
+                    continue;
+                }
+
+                var materials = new Material[sourceMaterials.Length];
+                for (var i = 0; i < sourceMaterials.Length; i++)
+                {
+                    var source = sourceMaterials[i];
+                    var color = tint;
+                    if (source != null && source.HasProperty("_Color"))
+                    {
+                        color = Color.Lerp(source.color, tint, 0.55f);
+                        color.a = opacity;
+                    }
+                    else
+                    {
+                        color.a = opacity;
+                    }
+
+                    materials[i] = TransparentMaterial($"{layer.name} layer material {i}", color, 0f, 0.12f);
+                }
+
+                renderer.sharedMaterials = materials;
+            }
+        }
+
+        private void FitZAnatomyLayersToPatient()
+        {
+            foreach (var layer in ZAnatomyLayers())
+            {
+                if (layer == null) continue;
+                layer.transform.rotation = Quaternion.Euler(-90f, 0f, 0f);
+                layer.transform.localScale = Vector3.one;
+                layer.transform.position = Vector3.zero;
+            }
+
+            var reference = zAnatomyRegionsLayer != null ? zAnatomyRegionsLayer : zAnatomySkeletalLayer != null ? zAnatomySkeletalLayer : zAnatomyVisceralLayer;
+            if (reference == null)
+            {
+                return;
+            }
+
+            var referenceBounds = CalculateBounds(reference);
+            var longestAxis = Mathf.Max(referenceBounds.size.x, referenceBounds.size.y, referenceBounds.size.z);
+            if (longestAxis <= 0.001f)
+            {
+                return;
+            }
+
+            var targetPatientLength = 2.85f;
+            var scale = targetPatientLength / longestAxis;
+            foreach (var layer in ZAnatomyLayers())
+            {
+                if (layer == null) continue;
+                layer.transform.localScale = Vector3.one * scale;
+            }
+
+            referenceBounds = CalculateBounds(reference);
+            var targetCenter = new Vector3(0f, 1.12f, 0.12f);
+            var offset = targetCenter - referenceBounds.center;
+            foreach (var layer in ZAnatomyLayers())
+            {
+                if (layer == null) continue;
+                layer.transform.position += offset;
+            }
+        }
+
+        private IEnumerable<GameObject> ZAnatomyLayers()
+        {
+            yield return zAnatomyRegionsLayer;
+            yield return zAnatomySkeletalLayer;
+            yield return zAnatomyMuscularLayer;
+            yield return zAnatomyCardioLayer;
+            yield return zAnatomyVisceralLayer;
+            yield return zAnatomyNervousLayer;
+            yield return zAnatomyLymphoidLayer;
+            yield return zAnatomyJointsLayer;
+            yield return zAnatomyReferencesLayer;
+        }
+
+        private void ConfigureZAnatomyVisibility()
+        {
+            if (zAnatomyRoot == null)
+            {
+                return;
+            }
+
+            zAnatomyRoot.SetActive(zAnatomyLoaded);
+            var fullAtlas = anatomyMode == 3;
+            SetLayerActive(zAnatomyRegionsLayer, fullAtlas);
+            SetLayerActive(zAnatomySkeletalLayer, anatomyMode == 1 || fullAtlas);
+            SetLayerActive(zAnatomyMuscularLayer, anatomyMode == 1 || fullAtlas);
+            SetLayerActive(zAnatomyCardioLayer, anatomyMode == 1 || anatomyMode == 2 || fullAtlas);
+            SetLayerActive(zAnatomyVisceralLayer, anatomyMode == 0 || anatomyMode == 2 || fullAtlas);
+            SetLayerActive(zAnatomyNervousLayer, fullAtlas);
+            SetLayerActive(zAnatomyLymphoidLayer, anatomyMode == 2 || fullAtlas);
+            SetLayerActive(zAnatomyJointsLayer, fullAtlas);
+            SetLayerActive(zAnatomyReferencesLayer, fullAtlas);
+        }
+
+        private static void SetLayerActive(GameObject layer, bool active)
+        {
+            if (layer != null)
+            {
+                layer.SetActive(active);
+            }
         }
 
         private void BuildSurgicalDevices()
@@ -411,6 +629,28 @@ namespace SurgiSim.UnityVisualization
             emergencyCameraObject.AddComponent<AudioListener>();
         }
 
+        private static string GetCommandLineValue(string key)
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            for (var i = 0; i < args.Length - 1; i++)
+            {
+                if (args[i] == key)
+                {
+                    return args[i + 1];
+                }
+            }
+
+            return null;
+        }
+
+        private IEnumerator CapturePreview(string path)
+        {
+            yield return new WaitForSeconds(1f);
+            yield return new WaitForEndOfFrame();
+            ScreenCapture.CaptureScreenshot(path);
+            Debug.Log($"SurgiSim captured preview: {path}");
+        }
+
         private void SetStep(int step)
         {
             if (gallbladder == null || bloodPool == null || specimenBag == null || smokeSystem == null || dropletSystem == null)
@@ -464,7 +704,7 @@ namespace SurgiSim.UnityVisualization
 
         private void SetAnatomyMode(int mode)
         {
-            anatomyMode = Mathf.Clamp(mode, 0, anatomyRoots.Count - 1);
+            anatomyMode = Mathf.Clamp(mode, 0, anatomyModes.Length - 1);
 
             for (var i = 0; i < anatomyRoots.Count; i++)
             {
@@ -473,6 +713,8 @@ namespace SurgiSim.UnityVisualization
                     anatomyRoots[i].SetActive(i == anatomyMode);
                 }
             }
+
+            ConfigureZAnatomyVisibility();
 
             var gallbladderMode = anatomyMode == 0;
             if (bloodPool != null) bloodPool.SetActive(gallbladderMode && currentStep >= 2);
@@ -496,6 +738,7 @@ namespace SurgiSim.UnityVisualization
                 {
                     1 => new Vector3(0, 1.82f, 2.44f),
                     2 => new Vector3(0, 1.76f, 2.64f),
+                    3 => new Vector3(0, 1.68f, 3.22f),
                     _ => new Vector3(0, 1.72f, 2.72f)
                 };
             }
@@ -516,6 +759,7 @@ namespace SurgiSim.UnityVisualization
                 {
                     1 => new Vector3(0, 1.58f, -0.3f),
                     2 => new Vector3(0, 1.56f, -0.05f),
+                    3 => new Vector3(0, 1.14f, 0.08f),
                     _ => new Vector3(0, 1.42f, -0.05f)
                 };
                 firstPersonCamera.transform.LookAt(target);
@@ -842,6 +1086,28 @@ namespace SurgiSim.UnityVisualization
         {
             var distance = Vector2.Distance(new Vector2(vertex.x, vertex.z), center);
             return Mathf.Exp(-(distance * distance) / 0.025f) * strength;
+        }
+
+        private static Bounds CalculateBounds(GameObject gameObject)
+        {
+            var renderers = gameObject.GetComponentsInChildren<Renderer>(true);
+            var hasBounds = false;
+            var bounds = new Bounds(gameObject.transform.position, Vector3.zero);
+
+            foreach (var renderer in renderers)
+            {
+                if (!hasBounds)
+                {
+                    bounds = renderer.bounds;
+                    hasBounds = true;
+                }
+                else
+                {
+                    bounds.Encapsulate(renderer.bounds);
+                }
+            }
+
+            return bounds;
         }
 
         private static void ParentTo(GameObject child, GameObject parent)
