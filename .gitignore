@@ -13,6 +13,26 @@ dist-ssr
 artifacts
 *.local
 
+# Unity generated state
+unity/**/Library/
+unity/**/Temp/
+unity/**/Obj/
+unity/**/Build/
+unity/**/Builds/
+unity/**/Logs/
+unity/**/UserSettings/
+unity/**/*.csproj
+unity/**/*.sln
+unity/**/*.pidb
+unity/**/*.booproj
+unity/**/*.svd
+unity/**/*.user
+unity/**/*.userprefs
+unity/**/*.unityproj
+unity/**/*.mdb
+unity/**/*.opendb
+unity/**/*.VC.db
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
