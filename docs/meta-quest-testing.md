@@ -5,9 +5,9 @@ The fastest headset test path is the web build on GitHub Pages.
 ## Quest Browser
 
 1. Push `main`.
-2. In GitHub, open **Settings > Pages** for `sgautam18/surgisim-ai-vr`.
-3. Set source to **GitHub Actions** if GitHub asks.
-4. Wait for the `Deploy WebXR Demo To GitHub Pages` action to complete.
+2. Wait for the `Publish WebXR Demo Branch` action to complete.
+3. In GitHub, open **Settings > Pages** for `sgautam18/surgisim-ai-vr`.
+4. If GitHub asks for a source, set it to **Deploy from a branch**, branch `gh-pages`, folder `/`.
 5. On Meta Quest, open Quest Browser.
 6. Go to:
 
