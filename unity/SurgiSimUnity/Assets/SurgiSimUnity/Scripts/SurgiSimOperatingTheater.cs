@@ -55,41 +55,61 @@ namespace SurgiSim.UnityVisualization
         private ParticleSystem dropletSystem;
         private Light cauteryGlow;
         private Camera firstPersonCamera;
+        private GameObject emergencyCameraObject;
         private float replayTimer;
         private int currentStep;
         private int anatomyMode;
+        private bool initialized;
+        private string startupError;
+        private Shader runtimeShader;
 
         public bool AutoPlay = true;
         public float SecondsPerStep = 3.3f;
 
         private void Start()
         {
-            QualitySettings.antiAliasing = 8;
-            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.78f, 0.93f, 0.96f);
-            RenderSettings.ambientEquatorColor = new Color(0.28f, 0.38f, 0.42f);
-            RenderSettings.ambientGroundColor = new Color(0.05f, 0.07f, 0.08f);
-            RenderSettings.fog = true;
-            RenderSettings.fogColor = new Color(0.78f, 0.91f, 0.93f);
-            RenderSettings.fogDensity = 0.012f;
+            BuildEmergencyCamera();
 
-            CreateMaterials();
-            BuildRoom();
-            BuildOperatingTable();
-            BuildPatientAndAnatomy();
-            BuildHeartAnatomyMode();
-            BuildUpperAbdomenMode();
-            BuildSurgicalDevices();
-            BuildSurgicalLights();
-            BuildFirstPersonTools();
-            BuildVfx();
-            BuildCamera();
-            SetStep(0);
-            SetAnatomyMode(0);
+            try
+            {
+                QualitySettings.antiAliasing = 8;
+                RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+                RenderSettings.ambientSkyColor = new Color(0.78f, 0.93f, 0.96f);
+                RenderSettings.ambientEquatorColor = new Color(0.28f, 0.38f, 0.42f);
+                RenderSettings.ambientGroundColor = new Color(0.05f, 0.07f, 0.08f);
+                RenderSettings.fog = true;
+                RenderSettings.fogColor = new Color(0.78f, 0.91f, 0.93f);
+                RenderSettings.fogDensity = 0.012f;
+
+                CreateMaterials();
+                BuildRoom();
+                BuildOperatingTable();
+                BuildPatientAndAnatomy();
+                BuildHeartAnatomyMode();
+                BuildUpperAbdomenMode();
+                BuildSurgicalDevices();
+                BuildSurgicalLights();
+                BuildFirstPersonTools();
+                BuildVfx();
+                BuildCamera();
+                SetStep(0);
+                SetAnatomyMode(0);
+                initialized = true;
+            }
+            catch (System.Exception exception)
+            {
+                startupError = exception.Message;
+                Debug.LogException(exception);
+            }
         }
 
         private void Update()
         {
+            if (!initialized)
+            {
+                return;
+            }
+
             if (AutoPlay)
             {
                 replayTimer += Time.deltaTime;
@@ -105,6 +125,17 @@ namespace SurgiSim.UnityVisualization
         private void OnGUI()
         {
             GUI.depth = 0;
+            if (!initialized)
+            {
+                var errorPanel = new Rect(22, 22, 520, 122);
+                GUI.color = new Color(0.18f, 0.02f, 0.03f, 0.88f);
+                GUI.DrawTexture(errorPanel, Texture2D.whiteTexture);
+                GUI.color = Color.white;
+                GUI.Label(new Rect(42, 42, 480, 26), "SurgiSim Unity OT is still initializing.");
+                GUI.Label(new Rect(42, 72, 480, 44), startupError ?? "Preparing operating theater scene...");
+                return;
+            }
+
             var panel = new Rect(22, 22, 470, 152);
             GUI.color = new Color(0.02f, 0.05f, 0.07f, 0.86f);
             GUI.DrawTexture(panel, Texture2D.whiteTexture);
@@ -344,6 +375,11 @@ namespace SurgiSim.UnityVisualization
 
         private void BuildCamera()
         {
+            if (emergencyCameraObject != null)
+            {
+                Destroy(emergencyCameraObject);
+            }
+
             var cameraObject = new GameObject("First-person surgeon camera");
             cameraObject.transform.position = new Vector3(0, 1.72f, 2.72f);
             cameraObject.transform.rotation = Quaternion.Euler(18f, 180f, 0);
@@ -356,8 +392,32 @@ namespace SurgiSim.UnityVisualization
             cameraObject.AddComponent<AudioListener>();
         }
 
+        private void BuildEmergencyCamera()
+        {
+            if (Camera.main != null)
+            {
+                return;
+            }
+
+            emergencyCameraObject = new GameObject("SurgiSim startup fallback camera");
+            emergencyCameraObject.transform.position = new Vector3(0, 1.6f, 3.4f);
+            emergencyCameraObject.transform.rotation = Quaternion.Euler(16f, 180f, 0);
+            var camera = emergencyCameraObject.AddComponent<Camera>();
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.02f, 0.05f, 0.07f);
+            camera.fieldOfView = 58f;
+            camera.nearClipPlane = 0.04f;
+            camera.farClipPlane = 60f;
+            emergencyCameraObject.AddComponent<AudioListener>();
+        }
+
         private void SetStep(int step)
         {
+            if (gallbladder == null || bloodPool == null || specimenBag == null || smokeSystem == null || dropletSystem == null)
+            {
+                return;
+            }
+
             if (step == currentStep && clips.Count > 0)
             {
                 return;
@@ -443,6 +503,11 @@ namespace SurgiSim.UnityVisualization
 
         private void AnimatePatient()
         {
+            if (patientTorso == null)
+            {
+                return;
+            }
+
             var breath = 1f + Mathf.Sin(Time.time * 2.1f) * 0.025f;
             patientTorso.transform.localScale = new Vector3(0.72f, 0.45f * breath, 1.1f);
             if (firstPersonCamera != null)
@@ -480,6 +545,11 @@ namespace SurgiSim.UnityVisualization
 
         private void AnimateTools()
         {
+            if (leftTool == null || rightTool == null || cauteryGlow == null)
+            {
+                return;
+            }
+
             var wave = Mathf.Sin(Time.time * 2.3f) * 0.025f;
             leftTool.transform.position = Vector3.Lerp(new Vector3(-0.62f, 1.3f, 1.18f), new Vector3(-0.28f, 1.5f, 0.02f), Mathf.Clamp01(currentStep / 4f)) + new Vector3(0, wave, 0);
             leftTool.transform.LookAt(new Vector3(-0.1f, 1.48f, -0.1f));
@@ -625,13 +695,16 @@ namespace SurgiSim.UnityVisualization
 
         private Material PbrMaterial(string name, Color color, float metallic, float smoothness, Texture2D texture)
         {
-            var shader = Shader.Find("Standard");
-            var material = new Material(shader) { name = name, color = color };
-            material.SetFloat("_Metallic", metallic);
-            material.SetFloat("_Glossiness", 1f - smoothness);
+            var shader = ResolveRuntimeShader();
+            var material = new Material(shader) { name = name };
+            SetMaterialColor(material, color);
+            SetMaterialFloat(material, "_Metallic", metallic);
+            SetMaterialFloat(material, "_Smoothness", 1f - smoothness);
+            SetMaterialFloat(material, "_Glossiness", 1f - smoothness);
             if (texture != null)
             {
-                material.mainTexture = texture;
+                SetMaterialTexture(material, "_BaseMap", texture);
+                SetMaterialTexture(material, "_MainTex", texture);
             }
             return material;
         }
@@ -639,14 +712,91 @@ namespace SurgiSim.UnityVisualization
         private Material TransparentMaterial(string name, Color color, float metallic, float smoothness)
         {
             var material = PbrMaterial(name, color, metallic, smoothness, null);
-            material.SetFloat("_Mode", 3);
-            material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            material.SetInt("_ZWrite", 0);
+            SetMaterialFloat(material, "_Mode", 3);
+            SetMaterialFloat(material, "_Surface", 1);
+            SetMaterialInt(material, "_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            SetMaterialInt(material, "_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            SetMaterialInt(material, "_ZWrite", 0);
             material.DisableKeyword("_ALPHATEST_ON");
             material.EnableKeyword("_ALPHABLEND_ON");
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
             material.renderQueue = 3000;
             return material;
+        }
+
+        private Shader ResolveRuntimeShader()
+        {
+            if (runtimeShader != null)
+            {
+                return runtimeShader;
+            }
+
+            foreach (var shaderName in new[]
+            {
+                "Universal Render Pipeline/Lit",
+                "Universal Render Pipeline/Simple Lit",
+                "Standard",
+                "Unlit/Texture",
+                "Unlit/Color",
+                "Sprites/Default"
+            })
+            {
+                runtimeShader = Shader.Find(shaderName);
+                if (runtimeShader != null)
+                {
+                    return runtimeShader;
+                }
+            }
+
+            var probe = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            probe.name = "Runtime shader probe";
+            var renderer = probe.GetComponent<Renderer>();
+            runtimeShader = renderer != null && renderer.sharedMaterial != null ? renderer.sharedMaterial.shader : null;
+            Destroy(probe);
+
+            if (runtimeShader == null)
+            {
+                throw new System.InvalidOperationException("No Unity runtime shader is available for generated operating theater materials.");
+            }
+
+            return runtimeShader;
+        }
+
+        private static void SetMaterialColor(Material material, Color color)
+        {
+            if (material.HasProperty("_BaseColor"))
+            {
+                material.SetColor("_BaseColor", color);
+            }
+
+            if (material.HasProperty("_Color"))
+            {
+                material.SetColor("_Color", color);
+            }
+        }
+
+        private static void SetMaterialFloat(Material material, string property, float value)
+        {
+            if (material.HasProperty(property))
+            {
+                material.SetFloat(property, value);
+            }
+        }
+
+        private static void SetMaterialInt(Material material, string property, int value)
+        {
+            if (material.HasProperty(property))
+            {
+                material.SetInt(property, value);
+            }
+        }
+
+        private static void SetMaterialTexture(Material material, string property, Texture texture)
+        {
+            if (material.HasProperty(property))
+            {
+                material.SetTexture(property, texture);
+            }
         }
 
         private Texture2D MakeNoiseTexture(Color low, Color high, int size, int seed)
