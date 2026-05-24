@@ -87,6 +87,7 @@
 .capability,
 .procedure,
 .scenario,
+.anatomy-card,
 .primary-action {
   border: 1px solid #26333b;
   background: #0d171d;
@@ -206,7 +207,8 @@
 .instrument-list,
 .guidance-list,
 .collab-list,
-.device-list {
+.device-list,
+.anatomy-list {
   display: grid;
   gap: 8px;
   padding: 12px;
@@ -225,6 +227,7 @@
 
 .procedure:hover,
 .scenario:hover,
+.anatomy-card:hover,
 .capability:hover,
 .primary-action:hover,
 .launch-button:hover {
@@ -233,13 +236,15 @@
 }
 
 .procedure.active,
-.scenario.active {
+.scenario.active,
+.anatomy-card.active {
   background: rgba(92, 200, 255, 0.12);
   border-color: rgba(92, 200, 255, 0.65);
 }
 
 .procedure strong,
 .scenario strong,
+.anatomy-card strong,
 .instrument-row strong {
   display: block;
   color: #edf8ff;
@@ -249,6 +254,7 @@
 
 .procedure em,
 .scenario em,
+.anatomy-card em,
 .instrument-row em {
   display: block;
   margin-top: 4px;
@@ -315,6 +321,46 @@
   white-space: nowrap;
   font-size: 11px;
   pointer-events: none;
+}
+
+.webxr-overlay {
+  pointer-events: none;
+}
+
+.webxr-button {
+  position: absolute;
+  right: 14px;
+  top: 54px;
+  z-index: 4;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid rgba(92, 200, 255, 0.42);
+  border-radius: 8px;
+  color: #e8fbff;
+  background: rgba(7, 16, 22, 0.78);
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.webxr-button:disabled {
+  color: #8b9aa4;
+  border-color: #26333b;
+  cursor: not-allowed;
+}
+
+.webxr-button.active {
+  color: #071016;
+  background: #87e8b0;
+  border-color: #87e8b0;
+}
+
+.webxr-button svg {
+  width: 16px;
+  height: 16px;
 }
 
 .patient-grid {
@@ -481,6 +527,30 @@
   border: 1px solid #26333b;
   border-radius: 6px;
   background: #101c23;
+}
+
+.anatomy-list {
+  grid-template-columns: 1fr;
+}
+
+.anatomy-card {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 10px;
+  border-radius: 6px;
+  text-align: left;
+}
+
+.anatomy-card span {
+  color: #9aaab3;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.anatomy-card small {
+  color: #87e8b0;
+  font-size: 11px;
 }
 
 .device-list {

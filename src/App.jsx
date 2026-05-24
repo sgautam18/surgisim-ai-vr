@@ -1,4 +1,4 @@
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment, Html, Lightformer, OrbitControls, PerspectiveCamera, SoftShadows, Text } from '@react-three/drei';
 import { Bloom, EffectComposer, SSAO, Vignette } from '@react-three/postprocessing';
 import {
@@ -163,6 +163,30 @@ const assetPipeline = [
   { slot: 'Texture maps', target: '/textures/{albedo,normal,roughness,ao}/', status: 'procedural maps active' },
 ];
 
+const anatomyScenes = [
+  {
+    id: 'gallbladder',
+    name: 'Gall bladder operation field',
+    body: 'Supine adult abdomen with liver bed, gall bladder, cystic duct, cystic artery, Calot triangle, stomach edge, duodenum, pancreas plane, and trocar map.',
+    operation: 'Laparoscopic cholecystectomy',
+    readiness: 'interactive replay active',
+  },
+  {
+    id: 'heart',
+    name: 'Open cardiac anatomy field',
+    body: 'Thoracic access with sternum/rib landmarks, beating heart, left/right ventricles, atria, aorta, pulmonary vessels, coronary artery path, lungs, and pericardial space.',
+    operation: 'Cardiac exposure and bypass planning',
+    readiness: 'visual atlas active',
+  },
+  {
+    id: 'abdomen',
+    name: 'Full upper abdomen atlas',
+    body: 'Layered stomach, lesser curvature, duodenum, pancreas, spleen, colon, liver segments, gall bladder, ducts, and nearby vessels for orientation before surgery.',
+    operation: 'Upper GI and hepatobiliary orientation',
+    readiness: 'multi-organ map active',
+  },
+];
+
 const skinMarks = [
   [-0.2, 0.62, -0.38, 0.012],
   [0.18, 0.63, -0.28, 0.009],
@@ -248,6 +272,8 @@ const useSimulation = create((set) => ({
   handTracking: true,
   haptics: true,
   replayActive: false,
+  anatomyScene: anatomyScenes[0],
+  setAnatomyScene: (anatomyScene) => set({ anatomyScene }),
   setProcedure: (activeProcedure) =>
     set({
       activeProcedure,
@@ -886,11 +912,153 @@ function DeviceCart({ position, rotation, label, color }) {
   );
 }
 
-function OperatingTheaterScene() {
-  const { bloodLoss, caseStep, emergency, handTracking, haptics } = useSimulation();
+function HeartAnatomyAtlas({ visible }) {
+  if (!visible) return null;
 
   return (
-    <Canvas shadows dpr={[1, 1.7]} gl={{ antialias: true }} data-testid="ot-canvas">
+    <group position={[-0.08, 0.82, -0.1]} rotation={[-0.06, 0, 0]}>
+      <mesh position={[0, 0.05, -0.07]} scale={[0.34, 0.42, 0.26]} castShadow>
+        <sphereGeometry args={[1, 42, 32]} />
+        <meshPhysicalMaterial color="#8f1628" roughness={0.18} clearcoat={0.85} clearcoatRoughness={0.12} />
+      </mesh>
+      <mesh position={[-0.13, 0.15, -0.04]} scale={[0.19, 0.26, 0.18]} castShadow>
+        <sphereGeometry args={[1, 36, 28]} />
+        <meshPhysicalMaterial color="#b71f34" roughness={0.16} clearcoat={0.88} clearcoatRoughness={0.1} />
+      </mesh>
+      <mesh position={[0.14, 0.12, -0.02]} scale={[0.2, 0.28, 0.17]} castShadow>
+        <sphereGeometry args={[1, 36, 28]} />
+        <meshPhysicalMaterial color="#7d1022" roughness={0.2} clearcoat={0.82} clearcoatRoughness={0.12} />
+      </mesh>
+      <mesh position={[0.04, 0.42, -0.04]} rotation={[0.45, 0, 0.1]}>
+        <torusGeometry args={[0.19, 0.035, 18, 72, Math.PI * 1.35]} />
+        <meshStandardMaterial color="#d3484a" metalness={0.05} roughness={0.2} />
+      </mesh>
+      <mesh position={[-0.22, 0.2, -0.03]} rotation={[0.3, 0.2, -0.6]}>
+        <cylinderGeometry args={[0.025, 0.038, 0.5, 18]} />
+        <meshStandardMaterial color="#2b77c4" roughness={0.18} />
+      </mesh>
+      <mesh position={[0.22, 0.24, -0.02]} rotation={[0.25, -0.2, 0.5]}>
+        <cylinderGeometry args={[0.03, 0.045, 0.58, 18]} />
+        <meshStandardMaterial color="#d64242" roughness={0.16} />
+      </mesh>
+      {[[-0.28, -0.02, -0.08], [0.28, -0.02, -0.08]].map(([x, y, z], index) => (
+        <mesh key={index} position={[x, y, z]} scale={[0.26, 0.42, 0.12]} rotation={[0.18, 0, index ? -0.25 : 0.25]} castShadow>
+          <sphereGeometry args={[1, 28, 18]} />
+          <meshPhysicalMaterial color="#b55564" transparent opacity={0.38} roughness={0.25} clearcoat={0.5} />
+        </mesh>
+      ))}
+      {[-0.34, -0.17, 0, 0.17, 0.34].map((x) => (
+        <mesh key={x} position={[x, 0.06, 0.25]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.32, 0.012, 12, 48, Math.PI]} />
+          <meshStandardMaterial color="#f1eadf" roughness={0.42} />
+        </mesh>
+      ))}
+      <Text position={[0, 0.72, -0.14]} fontSize={0.065} color="#f6fbff" anchorX="center">
+        beating heart atlas
+      </Text>
+    </group>
+  );
+}
+
+function AbdomenOrganAtlas({ visible }) {
+  if (!visible) return null;
+
+  return (
+    <group position={[0, 0.76, 0.02]}>
+      <mesh position={[-0.16, 0.04, -0.15]} rotation={[0.18, 0.15, -0.24]} scale={[0.42, 0.23, 0.26]} castShadow>
+        <sphereGeometry args={[1, 42, 28]} />
+        <meshPhysicalMaterial color="#8a3c2f" roughness={0.18} clearcoat={0.75} clearcoatRoughness={0.14} />
+      </mesh>
+      <mesh position={[0.08, 0.05, -0.17]} rotation={[0.08, 0, -0.18]} scale={[0.22, 0.11, 0.36]} castShadow>
+        <capsuleGeometry args={[1, 1.2, 12, 28]} />
+        <meshPhysicalMaterial color="#a75a44" roughness={0.22} clearcoat={0.65} />
+      </mesh>
+      <mesh position={[0.3, 0.07, -0.08]} rotation={[0.18, 0.1, 0.45]} scale={[0.12, 0.28, 0.1]} castShadow>
+        <capsuleGeometry args={[1, 1.2, 12, 28]} />
+        <meshPhysicalMaterial color="#ca8c5b" roughness={0.34} clearcoat={0.4} />
+      </mesh>
+      <mesh position={[0.02, 0.0, 0.08]} rotation={[0.05, 0.2, 1.43]} scale={[0.1, 0.48, 0.08]} castShadow>
+        <capsuleGeometry args={[1, 1.2, 12, 24]} />
+        <meshPhysicalMaterial color="#d9b374" roughness={0.36} clearcoat={0.32} />
+      </mesh>
+      <mesh position={[0.34, 0.11, -0.28]} scale={[0.16, 0.18, 0.11]} castShadow>
+        <sphereGeometry args={[1, 32, 22]} />
+        <meshPhysicalMaterial color="#5d1d2f" roughness={0.2} clearcoat={0.7} />
+      </mesh>
+      <mesh position={[0.01, 0.12, -0.26]} rotation={[0.12, 0.25, -0.08]} scale={[0.32, 0.2, 0.21]} castShadow>
+        <sphereGeometry args={[1, 42, 28]} />
+        <meshPhysicalMaterial color="#5a2f19" roughness={0.22} clearcoat={0.72} clearcoatRoughness={0.14} />
+      </mesh>
+      <mesh position={[0.22, 0.16, -0.22]} rotation={[0.08, 0, -0.28]} scale={[0.08, 0.22, 0.08]} castShadow>
+        <capsuleGeometry args={[1, 1.1, 10, 22]} />
+        <meshPhysicalMaterial color="#4b8f35" roughness={0.16} clearcoat={0.88} clearcoatRoughness={0.08} />
+      </mesh>
+      <Text position={[0.02, 0.58, -0.25]} fontSize={0.065} color="#f6fbff" anchorX="center">
+        stomach / liver / pancreas / spleen
+      </Text>
+    </group>
+  );
+}
+
+function WebXRLaunchButton() {
+  const { gl } = useThree();
+  const [supported, setSupported] = useState(false);
+  const [active, setActive] = useState(false);
+  const [message, setMessage] = useState('Quest Browser HTTPS required');
+
+  useEffect(() => {
+    let mounted = true;
+    navigator.xr?.isSessionSupported?.('immersive-vr')
+      .then((isSupported) => {
+        if (!mounted) return;
+        setSupported(isSupported);
+        setMessage(isSupported ? 'Enter Meta Quest VR' : 'Open on Quest Browser');
+      })
+      .catch(() => {
+        if (mounted) setMessage('WebXR unavailable here');
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [gl]);
+
+  const enterVr = async () => {
+    if (!navigator.xr || !supported) return;
+
+    const session = await navigator.xr.requestSession('immersive-vr', {
+      optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'],
+    });
+    setActive(true);
+    session.addEventListener('end', () => setActive(false), { once: true });
+    await gl.xr.setSession(session);
+  };
+
+  return (
+    <Html fullscreen className="webxr-overlay">
+      <button type="button" className={active ? 'webxr-button active' : 'webxr-button'} onClick={enterVr} disabled={!supported}>
+        <Headphones aria-hidden="true" />
+        <span>{active ? 'Meta Quest VR active' : message}</span>
+      </button>
+    </Html>
+  );
+}
+
+function OperatingTheaterScene() {
+  const { anatomyScene, bloodLoss, caseStep, emergency, handTracking, haptics } = useSimulation();
+  const isHeartScene = anatomyScene.id === 'heart';
+  const isAbdomenScene = anatomyScene.id === 'abdomen';
+
+  return (
+    <Canvas
+      shadows
+      dpr={[1, 1.7]}
+      gl={{ antialias: true }}
+      onCreated={({ gl }) => {
+        gl.xr.enabled = true;
+      }}
+      data-testid="ot-canvas"
+    >
       <Suspense fallback={null}>
         <FirstPersonCamera />
         <color attach="background" args={['#071016']} />
@@ -918,6 +1086,8 @@ function OperatingTheaterScene() {
           <meshStandardMaterial color="#2f8f96" roughness={0.42} />
         </mesh>
         <PatientModel bloodLoss={bloodLoss} caseStep={caseStep} />
+        <HeartAnatomyAtlas visible={isHeartScene} />
+        <AbdomenOrganAtlas visible={isAbdomenScene} />
         <SurgeonHands caseStep={caseStep} />
 
         <group position={[-1.95, 0.74, 0.45]}>
@@ -967,6 +1137,7 @@ function OperatingTheaterScene() {
           </Html>
         </group>
 
+        <WebXRLaunchButton />
         <OrbitControls enablePan={false} enableZoom={false} enableRotate={false} />
         <EffectComposer multisampling={0}>
           <SSAO samples={16} radius={0.12} intensity={18} luminanceInfluence={0.42} />
@@ -1062,6 +1233,34 @@ function ProcedureLibrary() {
               <em>{procedure.specialty}</em>
             </span>
             <b>{procedure.difficulty}</b>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AnatomyScenePanel() {
+  const { anatomyScene, setAnatomyScene } = useSimulation();
+
+  return (
+    <section className="panel anatomy-panel" aria-label="Anatomy scene atlas">
+      <div className="panel-heading">
+        <HeartPulse aria-hidden="true" />
+        <h2>Anatomy Visual Scenes</h2>
+      </div>
+      <div className="anatomy-list">
+        {anatomyScenes.map((scene) => (
+          <button
+            className={scene.id === anatomyScene.id ? 'anatomy-card active' : 'anatomy-card'}
+            key={scene.id}
+            type="button"
+            onClick={() => setAnatomyScene(scene)}
+          >
+            <strong>{scene.name}</strong>
+            <span>{scene.body}</span>
+            <em>{scene.operation}</em>
+            <small>{scene.readiness}</small>
           </button>
         ))}
       </div>
@@ -1459,6 +1658,7 @@ function App() {
       <div className="workspace">
         <aside className="left-rail">
           <GallbladderTestCase />
+          <AnatomyScenePanel />
           <ProcedureLibrary />
           <CapabilityGrid />
           <InstrumentPanel />

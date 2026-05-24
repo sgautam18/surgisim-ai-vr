@@ -25,6 +25,16 @@ npm run dev
 
 Open `http://127.0.0.1:5173/`.
 
+## Meta Quest Browser Test
+
+The web app includes a WebXR entry button for Meta Quest Browser. After pushing to `main`, GitHub Actions deploys the VR-ready browser build to:
+
+```text
+https://sgautam18.github.io/surgisim-ai-vr/
+```
+
+Open that URL in Quest Browser and press **Enter Meta Quest VR** inside the simulator stage. More details are in [docs/meta-quest-testing.md](docs/meta-quest-testing.md).
+
 ## Unity Visualization
 
 The Unity project lives at `unity/SurgiSimUnity`.

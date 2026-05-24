@@ -27,6 +27,8 @@ namespace SurgiSim.UnityVisualization
 
         private readonly List<GameObject> clips = new();
         private readonly List<GameObject> charringMarks = new();
+        private readonly List<GameObject> anatomyRoots = new();
+        private readonly string[] anatomyModes = { "Gall Bladder", "Heart", "Upper Abdomen" };
         private Material skinMaterial;
         private Material wetTissueMaterial;
         private Material liverMaterial;
@@ -46,12 +48,16 @@ namespace SurgiSim.UnityVisualization
         private GameObject leftTool;
         private GameObject rightTool;
         private GameObject laparoscopyFeedTarget;
+        private GameObject gallbladderRoot;
+        private GameObject heartRoot;
+        private GameObject abdomenAtlasRoot;
         private ParticleSystem smokeSystem;
         private ParticleSystem dropletSystem;
         private Light cauteryGlow;
         private Camera firstPersonCamera;
         private float replayTimer;
         private int currentStep;
+        private int anatomyMode;
 
         public bool AutoPlay = true;
         public float SecondsPerStep = 3.3f;
@@ -71,12 +77,15 @@ namespace SurgiSim.UnityVisualization
             BuildRoom();
             BuildOperatingTable();
             BuildPatientAndAnatomy();
+            BuildHeartAnatomyMode();
+            BuildUpperAbdomenMode();
             BuildSurgicalDevices();
             BuildSurgicalLights();
             BuildFirstPersonTools();
             BuildVfx();
             BuildCamera();
             SetStep(0);
+            SetAnatomyMode(0);
         }
 
         private void Update()
@@ -101,7 +110,7 @@ namespace SurgiSim.UnityVisualization
             GUI.DrawTexture(panel, Texture2D.whiteTexture);
             GUI.color = Color.white;
             GUI.Label(new Rect(42, 38, 430, 24), "SurgiSim Unity OT - Laparoscopic Cholecystectomy");
-            GUI.Label(new Rect(42, 66, 430, 24), $"Step {currentStep + 1}/6: {stepTitles[currentStep]}");
+            GUI.Label(new Rect(42, 66, 430, 24), $"Scene: {anatomyModes[anatomyMode]} | Step {currentStep + 1}/6: {stepTitles[currentStep]}");
             GUI.Label(new Rect(42, 94, 430, 48), stepCues[currentStep]);
 
             if (GUI.Button(new Rect(42, 132, 82, 26), AutoPlay ? "Pause" : "Replay"))
@@ -118,6 +127,21 @@ namespace SurgiSim.UnityVisualization
                 replayTimer = 0;
                 AutoPlay = true;
                 SetStep(0);
+            }
+
+            if (GUI.Button(new Rect(224, 132, 92, 26), "Gall"))
+            {
+                SetAnatomyMode(0);
+            }
+
+            if (GUI.Button(new Rect(324, 132, 82, 26), "Heart"))
+            {
+                SetAnatomyMode(1);
+            }
+
+            if (GUI.Button(new Rect(414, 132, 82, 26), "Abd"))
+            {
+                SetAnatomyMode(2);
             }
         }
 
@@ -157,24 +181,81 @@ namespace SurgiSim.UnityVisualization
 
         private void BuildPatientAndAnatomy()
         {
+            gallbladderRoot = new GameObject("Gall bladder procedure anatomy mode");
+            anatomyRoots.Add(gallbladderRoot);
+
             patientTorso = CreateEllipsoid("Breathing patient torso", new Vector3(0, 1.04f, 0.08f), new Vector3(0.72f, 0.45f, 1.1f), skinMaterial);
             CreateEllipsoid("Patient head", new Vector3(0, 1.16f, -1.3f), new Vector3(0.34f, 0.28f, 0.34f), skinMaterial);
             CreateEllipsoid("Left arm secured", new Vector3(-0.78f, 0.93f, -0.05f), new Vector3(0.14f, 0.14f, 0.72f), skinMaterial).transform.rotation = Quaternion.Euler(0, 0, 11f);
             CreateEllipsoid("Right arm secured", new Vector3(0.78f, 0.93f, -0.05f), new Vector3(0.14f, 0.14f, 0.72f), skinMaterial).transform.rotation = Quaternion.Euler(0, 0, -11f);
 
-            CreateBox("Fenestrated sterile drape", new Vector3(0, 1.31f, 0.08f), new Vector3(2.7f, 0.025f, 2.65f), drapeMaterial);
-            CreateTorusProxy("Abdominal surgical opening", new Vector3(0, 1.345f, 0.07f), new Vector3(0.88f, 0.04f, 0.62f), drapeMaterial);
+            ParentTo(CreateBox("Fenestrated sterile drape", new Vector3(0, 1.31f, 0.08f), new Vector3(2.7f, 0.025f, 2.65f), drapeMaterial), gallbladderRoot);
+            ParentTo(CreateTorusProxy("Abdominal surgical opening", new Vector3(0, 1.345f, 0.07f), new Vector3(0.88f, 0.04f, 0.62f), drapeMaterial), gallbladderRoot);
             abdomenSurface = BuildAbdomenMesh();
+            ParentTo(abdomenSurface, gallbladderRoot);
 
-            CreateEllipsoid("Liver model", new Vector3(-0.1f, 1.55f, -0.23f), new Vector3(0.42f, 0.22f, 0.28f), liverMaterial).transform.rotation = Quaternion.Euler(0, 0, -8f);
+            var liver = CreateEllipsoid("Liver model", new Vector3(-0.1f, 1.55f, -0.23f), new Vector3(0.42f, 0.22f, 0.28f), liverMaterial);
+            liver.transform.rotation = Quaternion.Euler(0, 0, -8f);
+            ParentTo(liver, gallbladderRoot);
             gallbladder = CreateEllipsoid("Gall bladder target", new Vector3(0.26f, 1.57f, -0.2f), new Vector3(0.12f, 0.24f, 0.1f), gallbladderMaterial);
             gallbladder.transform.rotation = Quaternion.Euler(0, 0, -24f);
-            CreateCylinderBetween("Cystic duct", new Vector3(0.18f, 1.53f, -0.06f), new Vector3(0.45f, 1.51f, 0.14f), 0.018f, wetTissueMaterial);
+            ParentTo(gallbladder, gallbladderRoot);
+            ParentTo(CreateCylinderBetween("Cystic duct", new Vector3(0.18f, 1.53f, -0.06f), new Vector3(0.45f, 1.51f, 0.14f), 0.018f, wetTissueMaterial), gallbladderRoot);
 
             foreach (var port in new[] { new Vector3(-0.38f, 1.38f, 0.28f), new Vector3(0.42f, 1.38f, 0.18f), new Vector3(0.03f, 1.38f, 0.58f) })
             {
-                CreateTorusProxy("Metal trocar port", port, new Vector3(0.18f, 0.025f, 0.18f), metalMaterial);
+                ParentTo(CreateTorusProxy("Metal trocar port", port, new Vector3(0.18f, 0.025f, 0.18f), metalMaterial), gallbladderRoot);
             }
+        }
+
+        private void BuildHeartAnatomyMode()
+        {
+            heartRoot = new GameObject("Heart anatomy visual mode");
+            anatomyRoots.Add(heartRoot);
+
+            ParentTo(CreateBox("Open chest sterile drape", new Vector3(0, 1.31f, -0.28f), new Vector3(2.45f, 0.025f, 2.2f), drapeMaterial), heartRoot);
+            ParentTo(CreateTorusProxy("Sternotomy opening", new Vector3(0, 1.36f, -0.3f), new Vector3(0.66f, 0.028f, 0.42f), wetTissueMaterial), heartRoot);
+
+            for (var i = -3; i <= 3; i++)
+            {
+                var rib = CreateTorusProxy("Rib arc", new Vector3(i * 0.13f, 1.46f, -0.28f), new Vector3(0.5f, 0.01f, 0.18f), PbrMaterial("Bone ivory", new Color(0.86f, 0.82f, 0.72f), 0, 0.38f, null));
+                rib.transform.rotation = Quaternion.Euler(0, 0, 90f);
+                ParentTo(rib, heartRoot);
+            }
+
+            var heart = CreateEllipsoid("Beating heart full model", new Vector3(0, 1.58f, -0.28f), new Vector3(0.36f, 0.45f, 0.28f), PbrMaterial("Cardiac muscle wet", new Color(0.62f, 0.06f, 0.13f), 0, 0.1f, MakeNoiseTexture(new Color(0.3f, 0.02f, 0.05f), new Color(0.9f, 0.18f, 0.22f), 256, 41)));
+            heart.transform.rotation = Quaternion.Euler(0, 0, -12f);
+            ParentTo(heart, heartRoot);
+            ParentTo(CreateEllipsoid("Left ventricle", new Vector3(-0.12f, 1.55f, -0.24f), new Vector3(0.22f, 0.32f, 0.18f), wetTissueMaterial), heartRoot);
+            ParentTo(CreateEllipsoid("Right ventricle", new Vector3(0.15f, 1.53f, -0.25f), new Vector3(0.2f, 0.28f, 0.16f), PbrMaterial("Right ventricle", new Color(0.48f, 0.04f, 0.1f), 0, 0.12f, null)), heartRoot);
+            ParentTo(CreateCylinderBetween("Aorta", new Vector3(0.02f, 1.86f, -0.29f), new Vector3(0.22f, 2.18f, -0.2f), 0.052f, PbrMaterial("Aorta red vessel", new Color(0.78f, 0.04f, 0.08f), 0, 0.12f, null)), heartRoot);
+            ParentTo(CreateCylinderBetween("Pulmonary artery", new Vector3(-0.1f, 1.82f, -0.29f), new Vector3(-0.36f, 2.05f, -0.22f), 0.045f, PbrMaterial("Pulmonary blue vessel", new Color(0.1f, 0.32f, 0.72f), 0, 0.14f, null)), heartRoot);
+
+            foreach (var offset in new[] { -0.18f, 0.02f, 0.2f })
+            {
+                ParentTo(CreateCylinderBetween("Coronary artery path", new Vector3(offset, 1.67f, -0.02f), new Vector3(offset + 0.11f, 1.42f, -0.06f), 0.012f, PbrMaterial("Coronary vessel", new Color(0.92f, 0.2f, 0.12f), 0, 0.18f, null)), heartRoot);
+            }
+
+            ParentTo(CreateEllipsoid("Left lung", new Vector3(-0.58f, 1.52f, -0.3f), new Vector3(0.22f, 0.48f, 0.18f), TransparentMaterial("Translucent lung left", new Color(0.82f, 0.36f, 0.42f, 0.38f), 0, 0.18f)), heartRoot);
+            ParentTo(CreateEllipsoid("Right lung", new Vector3(0.58f, 1.52f, -0.3f), new Vector3(0.22f, 0.48f, 0.18f), TransparentMaterial("Translucent lung right", new Color(0.82f, 0.36f, 0.42f, 0.38f), 0, 0.18f)), heartRoot);
+        }
+
+        private void BuildUpperAbdomenMode()
+        {
+            abdomenAtlasRoot = new GameObject("Upper abdomen multi-organ visual mode");
+            anatomyRoots.Add(abdomenAtlasRoot);
+
+            ParentTo(CreateBox("Upper abdomen exposure drape", new Vector3(0, 1.31f, 0.08f), new Vector3(2.7f, 0.025f, 2.65f), drapeMaterial), abdomenAtlasRoot);
+            ParentTo(CreateTorusProxy("Upper abdomen opening", new Vector3(0, 1.36f, 0.03f), new Vector3(0.92f, 0.03f, 0.68f), wetTissueMaterial), abdomenAtlasRoot);
+            ParentTo(CreateEllipsoid("Complete stomach", new Vector3(-0.28f, 1.56f, -0.16f), new Vector3(0.42f, 0.24f, 0.27f), PbrMaterial("Stomach wall", new Color(0.72f, 0.26f, 0.2f), 0, 0.16f, MakeNoiseTexture(new Color(0.34f, 0.08f, 0.05f), new Color(0.92f, 0.42f, 0.3f), 256, 47))), abdomenAtlasRoot);
+            ParentTo(CreateCylinderBetween("Esophagus", new Vector3(-0.34f, 1.7f, -0.34f), new Vector3(-0.32f, 1.98f, -0.48f), 0.04f, wetTissueMaterial), abdomenAtlasRoot);
+            ParentTo(CreateCylinderBetween("Duodenum curve", new Vector3(0.05f, 1.54f, -0.1f), new Vector3(0.42f, 1.5f, 0.12f), 0.045f, PbrMaterial("Duodenum", new Color(0.85f, 0.52f, 0.31f), 0, 0.22f, null)), abdomenAtlasRoot);
+            ParentTo(CreateEllipsoid("Pancreas", new Vector3(0.08f, 1.44f, 0.12f), new Vector3(0.42f, 0.1f, 0.08f), PbrMaterial("Pancreas", new Color(0.9f, 0.66f, 0.42f), 0, 0.32f, null)), abdomenAtlasRoot);
+            ParentTo(CreateEllipsoid("Spleen", new Vector3(-0.66f, 1.57f, -0.12f), new Vector3(0.16f, 0.28f, 0.12f), PbrMaterial("Spleen", new Color(0.33f, 0.04f, 0.12f), 0, 0.14f, null)), abdomenAtlasRoot);
+            ParentTo(CreateEllipsoid("Segmented liver", new Vector3(0.12f, 1.68f, -0.24f), new Vector3(0.56f, 0.26f, 0.28f), liverMaterial), abdomenAtlasRoot);
+            ParentTo(CreateEllipsoid("Gall bladder under liver", new Vector3(0.46f, 1.57f, -0.17f), new Vector3(0.1f, 0.22f, 0.08f), gallbladderMaterial), abdomenAtlasRoot);
+            ParentTo(CreateCylinderBetween("Common bile duct", new Vector3(0.42f, 1.53f, -0.08f), new Vector3(0.24f, 1.48f, 0.18f), 0.016f, PbrMaterial("Bile duct", new Color(0.82f, 0.72f, 0.36f), 0, 0.18f, null)), abdomenAtlasRoot);
+            ParentTo(CreateTorusProxy("Transverse colon", new Vector3(0, 1.37f, 0.42f), new Vector3(0.72f, 0.035f, 0.14f), PbrMaterial("Colon", new Color(0.72f, 0.4f, 0.25f), 0, 0.34f, null)), abdomenAtlasRoot);
         }
 
         private void BuildSurgicalDevices()
@@ -283,10 +364,11 @@ namespace SurgiSim.UnityVisualization
             }
 
             currentStep = step;
+            var gallbladderMode = anatomyMode == 0;
             gallbladder.transform.localScale = step >= 5 ? new Vector3(0.08f, 0.16f, 0.07f) : new Vector3(0.12f, 0.24f, 0.1f);
-            bloodPool.SetActive(step >= 2);
+            bloodPool.SetActive(gallbladderMode && step >= 2);
             bloodPool.transform.localScale = Vector3.one * Mathf.Lerp(0.45f, 1.2f, step / 5f);
-            specimenBag.SetActive(step >= 5);
+            specimenBag.SetActive(gallbladderMode && step >= 5);
 
             foreach (var clip in clips)
             {
@@ -296,8 +378,12 @@ namespace SurgiSim.UnityVisualization
 
             if (step >= 3)
             {
-                clips.Add(CreateBox("Gold cystic duct clip", new Vector3(0.21f, 1.56f, -0.02f), new Vector3(0.13f, 0.025f, 0.035f), PbrMaterial("Gold clip", new Color(1f, 0.78f, 0.18f), 1f, 0.16f, null)));
-                clips.Add(CreateBox("Gold cystic artery clip", new Vector3(0.32f, 1.55f, 0.04f), new Vector3(0.13f, 0.025f, 0.035f), PbrMaterial("Gold clip 2", new Color(1f, 0.78f, 0.18f), 1f, 0.16f, null)));
+                var ductClip = CreateBox("Gold cystic duct clip", new Vector3(0.21f, 1.56f, -0.02f), new Vector3(0.13f, 0.025f, 0.035f), PbrMaterial("Gold clip", new Color(1f, 0.78f, 0.18f), 1f, 0.16f, null));
+                var arteryClip = CreateBox("Gold cystic artery clip", new Vector3(0.32f, 1.55f, 0.04f), new Vector3(0.13f, 0.025f, 0.035f), PbrMaterial("Gold clip 2", new Color(1f, 0.78f, 0.18f), 1f, 0.16f, null));
+                ParentTo(ductClip, gallbladderRoot);
+                ParentTo(arteryClip, gallbladderRoot);
+                clips.Add(ductClip);
+                clips.Add(arteryClip);
             }
 
             foreach (var mark in charringMarks)
@@ -306,14 +392,53 @@ namespace SurgiSim.UnityVisualization
             }
 
             var smokeEmission = smokeSystem.emission;
-            smokeEmission.rateOverTime = step >= 4 ? 28f : 0;
-            if (step >= 4 && !smokeSystem.isPlaying) smokeSystem.Play();
-            if (step < 4) smokeSystem.Stop();
+            smokeEmission.rateOverTime = gallbladderMode && step >= 4 ? 28f : 0;
+            if (gallbladderMode && step >= 4 && !smokeSystem.isPlaying) smokeSystem.Play();
+            if (!gallbladderMode || step < 4) smokeSystem.Stop();
 
             var dropletEmission = dropletSystem.emission;
-            dropletEmission.rateOverTime = step >= 2 && step <= 4 ? 6f : 0;
-            if (step >= 2 && step <= 4 && !dropletSystem.isPlaying) dropletSystem.Play();
-            if (step < 2 || step > 4) dropletSystem.Stop();
+            dropletEmission.rateOverTime = gallbladderMode && step >= 2 && step <= 4 ? 6f : 0;
+            if (gallbladderMode && step >= 2 && step <= 4 && !dropletSystem.isPlaying) dropletSystem.Play();
+            if (!gallbladderMode || step < 2 || step > 4) dropletSystem.Stop();
+        }
+
+        private void SetAnatomyMode(int mode)
+        {
+            anatomyMode = Mathf.Clamp(mode, 0, anatomyRoots.Count - 1);
+
+            for (var i = 0; i < anatomyRoots.Count; i++)
+            {
+                if (anatomyRoots[i] != null)
+                {
+                    anatomyRoots[i].SetActive(i == anatomyMode);
+                }
+            }
+
+            var gallbladderMode = anatomyMode == 0;
+            if (bloodPool != null) bloodPool.SetActive(gallbladderMode && currentStep >= 2);
+            if (specimenBag != null) specimenBag.SetActive(gallbladderMode && currentStep >= 5);
+            if (leftTool != null) leftTool.SetActive(gallbladderMode);
+            if (rightTool != null) rightTool.SetActive(gallbladderMode);
+            if (smokeSystem != null)
+            {
+                var emission = smokeSystem.emission;
+                emission.rateOverTime = gallbladderMode && currentStep >= 4 ? 28f : 0f;
+            }
+            if (dropletSystem != null)
+            {
+                var emission = dropletSystem.emission;
+                emission.rateOverTime = gallbladderMode && currentStep >= 2 && currentStep <= 4 ? 6f : 0f;
+            }
+
+            if (firstPersonCamera != null)
+            {
+                firstPersonCamera.transform.position = anatomyMode switch
+                {
+                    1 => new Vector3(0, 1.82f, 2.44f),
+                    2 => new Vector3(0, 1.76f, 2.64f),
+                    _ => new Vector3(0, 1.72f, 2.72f)
+                };
+            }
         }
 
         private void AnimatePatient()
@@ -322,7 +447,13 @@ namespace SurgiSim.UnityVisualization
             patientTorso.transform.localScale = new Vector3(0.72f, 0.45f * breath, 1.1f);
             if (firstPersonCamera != null)
             {
-                firstPersonCamera.transform.LookAt(new Vector3(0, 1.42f, -0.05f));
+                var target = anatomyMode switch
+                {
+                    1 => new Vector3(0, 1.58f, -0.3f),
+                    2 => new Vector3(0, 1.56f, -0.05f),
+                    _ => new Vector3(0, 1.42f, -0.05f)
+                };
+                firstPersonCamera.transform.LookAt(target);
             }
         }
 
@@ -561,6 +692,14 @@ namespace SurgiSim.UnityVisualization
         {
             var distance = Vector2.Distance(new Vector2(vertex.x, vertex.z), center);
             return Mathf.Exp(-(distance * distance) / 0.025f) * strength;
+        }
+
+        private static void ParentTo(GameObject child, GameObject parent)
+        {
+            if (child != null && parent != null)
+            {
+                child.transform.SetParent(parent.transform, true);
+            }
         }
     }
 }
