@@ -1,0 +1,647 @@
+.app-shell {
+  min-height: 100vh;
+  color: #dce8ef;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(92, 200, 255, 0.14), transparent 28%),
+    linear-gradient(180deg, #0a1218 0%, #071016 46%, #0c1318 100%);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 76px;
+  padding: 0 26px;
+  border-bottom: 1px solid #1f2b33;
+  background: rgba(9, 18, 25, 0.88);
+  backdrop-filter: blur(18px);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.brand,
+.mode-strip,
+.panel-heading,
+.mentor-state,
+.phase-row,
+.annotation-row,
+.assessment-row,
+.feature-row,
+.stage-toolbar,
+.stage-footer,
+.launch-button,
+.pill,
+.capability,
+.instrument-row,
+.procedure,
+.scenario,
+.collaborator {
+  display: flex;
+  align-items: center;
+}
+
+.brand {
+  gap: 12px;
+  min-width: 280px;
+}
+
+.brand svg {
+  width: 34px;
+  height: 34px;
+  color: #5cc8ff;
+}
+
+.brand strong {
+  display: block;
+  color: #f4fbff;
+  font-size: 18px;
+}
+
+.brand span,
+.command-band span,
+.metric span,
+.procedure em,
+.scenario em,
+.instrument-row em,
+.collaborator em,
+.collaborator small,
+.feature-row span,
+.assessment-row span,
+.annotation-row span,
+.stage-toolbar span,
+.stage-footer span {
+  color: #8b9aa4;
+}
+
+.mode-strip {
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.pill,
+.icon-action,
+.launch-button,
+.capability,
+.procedure,
+.scenario,
+.primary-action {
+  border: 1px solid #26333b;
+  background: #0d171d;
+  color: #dce8ef;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.pill {
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 6px;
+}
+
+.pill svg,
+.launch-button svg,
+.panel-heading svg,
+.mentor-state svg,
+.annotation-row svg,
+.assessment-row svg,
+.feature-row svg,
+.stage-toolbar svg,
+.stage-footer svg,
+.primary-action svg {
+  width: 16px;
+  height: 16px;
+}
+
+.pill.active {
+  border-color: rgba(92, 200, 255, 0.48);
+  background: rgba(92, 200, 255, 0.1);
+}
+
+.command-band {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.4fr) repeat(2, minmax(120px, 0.6fr)) auto;
+  gap: 1px;
+  margin: 18px 26px 0;
+  border: 1px solid #1f2b33;
+  background: #1f2b33;
+}
+
+.command-band > div,
+.launch-button {
+  background: #0e171d;
+  min-height: 72px;
+  padding: 12px 16px;
+  box-sizing: border-box;
+}
+
+.command-band span {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.command-band strong {
+  display: block;
+  margin-top: 5px;
+  color: #f4fbff;
+  font-size: 18px;
+}
+
+.launch-button {
+  gap: 10px;
+  justify-content: center;
+  min-width: 190px;
+  font-weight: 800;
+  color: #071016;
+  background: #87e8b0;
+  border: none;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: 300px minmax(420px, 1fr) 340px;
+  gap: 18px;
+  padding: 18px 26px;
+}
+
+.left-rail,
+.right-rail,
+.lower-grid {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.panel {
+  background: rgba(13, 23, 29, 0.96);
+  border: 1px solid #26333b;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.panel-heading {
+  gap: 10px;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid #1f2b33;
+}
+
+.panel-heading h2 {
+  margin: 0;
+  color: #f4fbff;
+  font-size: 15px;
+  line-height: 1.1;
+  flex: 1;
+}
+
+.procedure-list,
+.instrument-list,
+.guidance-list,
+.collab-list {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.procedure,
+.scenario {
+  width: 100%;
+  gap: 10px;
+  justify-content: space-between;
+  min-height: 58px;
+  padding: 10px;
+  border-radius: 6px;
+  text-align: left;
+}
+
+.procedure:hover,
+.scenario:hover,
+.capability:hover,
+.primary-action:hover,
+.launch-button:hover {
+  transform: translateY(-1px);
+  border-color: #5cc8ff;
+}
+
+.procedure.active,
+.scenario.active {
+  background: rgba(92, 200, 255, 0.12);
+  border-color: rgba(92, 200, 255, 0.65);
+}
+
+.procedure strong,
+.scenario strong,
+.instrument-row strong {
+  display: block;
+  color: #edf8ff;
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.procedure em,
+.scenario em,
+.instrument-row em {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.procedure b,
+.scenario b,
+.instrument-row b,
+.score {
+  color: #87e8b0;
+  font-size: 18px;
+}
+
+.simulator-stage {
+  min-height: 660px;
+  display: grid;
+  grid-template-rows: auto minmax(520px, 1fr) auto;
+  border: 1px solid #26333b;
+  background: #071016;
+  overflow: hidden;
+}
+
+.simulator-stage canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.stage-toolbar,
+.stage-footer {
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #0d171d;
+  border-bottom: 1px solid #1f2b33;
+}
+
+.stage-footer {
+  border-top: 1px solid #1f2b33;
+  border-bottom: 0;
+  flex-wrap: wrap;
+}
+
+.stage-toolbar div,
+.stage-footer span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.scene-label {
+  padding: 4px 7px;
+  border: 1px solid rgba(92, 200, 255, 0.4);
+  border-radius: 5px;
+  color: #dff8ff;
+  background: rgba(7, 16, 22, 0.78);
+  white-space: nowrap;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.patient-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 12px;
+}
+
+.metric {
+  background: #101c23;
+  border: 1px solid #26333b;
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.metric strong {
+  display: inline-block;
+  margin-top: 4px;
+  color: #f4fbff;
+  font-size: 24px;
+}
+
+.metric em {
+  margin-left: 5px;
+  color: #73828d;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.risk-dot {
+  height: 24px;
+  min-width: 62px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 7px;
+  font-size: 12px;
+  color: #071016;
+  background: #87e8b0;
+}
+
+.risk-dot.watch {
+  background: #ffd166;
+}
+
+.risk-dot.critical {
+  background: #ff6b7a;
+}
+
+.trace {
+  padding: 0 10px 8px;
+}
+
+.phase-row {
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-top: 1px solid #1f2b33;
+}
+
+.phase-row strong {
+  color: #ffd166;
+}
+
+.mentor-state,
+.annotation-row,
+.assessment-row,
+.feature-row {
+  gap: 8px;
+  padding: 10px 14px;
+}
+
+.mentor-state {
+  color: #87e8b0;
+}
+
+.guidance-list {
+  margin: 0;
+  padding-left: 32px;
+}
+
+.guidance-list li {
+  color: #cfdbe2;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.icon-action {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 6px;
+}
+
+.primary-action {
+  width: calc(100% - 24px);
+  margin: 0 12px 12px;
+  min-height: 40px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 800;
+}
+
+.emergency-panel {
+  border-color: rgba(255, 107, 122, 0.35);
+}
+
+.emergency-panel .panel-heading svg {
+  color: #ff6b7a;
+}
+
+.emergency-panel .scenario {
+  margin: 0 12px 8px;
+  width: calc(100% - 24px);
+}
+
+.capability-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 12px;
+}
+
+.capability {
+  min-height: 78px;
+  border-radius: 6px;
+  padding: 10px;
+  align-items: flex-start;
+  justify-content: center;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.capability svg {
+  width: 20px;
+  height: 20px;
+  color: #5cc8ff;
+}
+
+.capability span {
+  color: #f4fbff;
+  font-weight: 800;
+}
+
+.capability em {
+  color: #73828d;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.capability.active {
+  border-color: rgba(135, 232, 176, 0.55);
+}
+
+.instrument-row {
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #26333b;
+  border-radius: 6px;
+  background: #101c23;
+}
+
+.lower-grid {
+  grid-template-columns: 1fr 1fr 1fr;
+  padding: 0 26px 26px;
+}
+
+.collab-list {
+  padding-bottom: 4px;
+}
+
+.collaborator {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 10px;
+  padding: 10px;
+  border-radius: 6px;
+  background: #101c23;
+  border: 1px solid #26333b;
+}
+
+.collaborator > span {
+  grid-row: span 3;
+  width: 10px;
+  height: 42px;
+  border-radius: 999px;
+}
+
+.collaborator strong {
+  color: #f4fbff;
+}
+
+.collaborator em,
+.collaborator small {
+  font-style: normal;
+}
+
+.planning-panel {
+  min-height: 244px;
+}
+
+.scan-preview {
+  position: relative;
+  min-height: 130px;
+  margin: 12px;
+  border: 1px solid #26333b;
+  background:
+    linear-gradient(90deg, transparent 0 48%, rgba(92, 200, 255, 0.35) 49% 51%, transparent 52%),
+    repeating-linear-gradient(0deg, rgba(92, 200, 255, 0.06) 0 2px, transparent 2px 14px),
+    #08151c;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.scan-preview span {
+  position: absolute;
+  border: 1px solid rgba(92, 200, 255, 0.48);
+  border-radius: 50%;
+}
+
+.scan-preview span:nth-child(1) {
+  width: 96px;
+  height: 96px;
+  left: 14%;
+  top: 16px;
+}
+
+.scan-preview span:nth-child(2) {
+  width: 68px;
+  height: 68px;
+  left: 36%;
+  top: 30px;
+}
+
+.scan-preview span:nth-child(3) {
+  width: 108px;
+  height: 58px;
+  right: 12%;
+  top: 34px;
+  border-radius: 42%;
+}
+
+.scan-preview strong,
+.scan-preview em {
+  position: absolute;
+  left: 14px;
+  color: #dce8ef;
+}
+
+.scan-preview strong {
+  bottom: 28px;
+}
+
+.scan-preview em {
+  bottom: 10px;
+  color: #8b9aa4;
+  font-style: normal;
+  font-size: 12px;
+}
+
+.analytics-panel {
+  min-height: 244px;
+}
+
+.score {
+  border: 1px solid rgba(135, 232, 176, 0.45);
+  border-radius: 6px;
+  padding: 3px 8px;
+  background: rgba(135, 232, 176, 0.09);
+}
+
+@media (max-width: 1280px) {
+  .workspace {
+    grid-template-columns: 280px minmax(380px, 1fr);
+  }
+
+  .right-rail {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .topbar,
+  .command-band {
+    margin: 0;
+  }
+
+  .topbar {
+    position: static;
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 16px;
+  }
+
+  .command-band {
+    grid-template-columns: 1fr 1fr;
+    margin: 14px 16px 0;
+  }
+
+  .workspace,
+  .lower-grid,
+  .right-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace,
+  .lower-grid {
+    padding: 16px;
+  }
+
+  .simulator-stage {
+    min-height: 560px;
+    order: -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .command-band,
+  .capability-grid,
+  .patient-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stage-toolbar,
+  .stage-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
