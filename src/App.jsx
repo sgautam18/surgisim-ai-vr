@@ -6,10 +6,12 @@ import {
   Bluetooth,
   Bot,
   Brain,
+  CheckCircle2,
   ChartNoAxesCombined,
   CircleAlert,
   ClipboardCheck,
   Cpu,
+  Crosshair,
   Eye,
   FileHeart,
   Gauge,
@@ -23,12 +25,15 @@ import {
   Play,
   Radio,
   ScanLine,
+  Scissors,
   ShieldCheck,
   Siren,
   Stethoscope,
+  Syringe,
   Users,
   Video,
   Waves,
+  Zap,
 } from 'lucide-react';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { create } from 'zustand';
@@ -58,6 +63,8 @@ const instruments = [
   { name: 'Bipolar cautery', status: 'armed', precision: 88 },
   { name: 'Laparoscope', status: 'tracking', precision: 97 },
   { name: 'Needle driver', status: 'ready', precision: 91 },
+  { name: 'Clip applier', status: 'loaded', precision: 90 },
+  { name: 'Suction irrigator', status: 'primed', precision: 86 },
 ];
 
 const scenarios = [
@@ -90,10 +97,66 @@ const collaborators = [
   { role: 'Scrub Nurse', name: 'AI Nurse', mode: 'Voice agent', color: '#87e8b0' },
 ];
 
+const theaterDevices = [
+  { name: 'Anesthesia workstation', state: 'MAC 0.9, ETCO2 live', icon: Syringe },
+  { name: 'Ventilator', state: 'volume control synced', icon: Waves },
+  { name: 'ECG and vitals monitor', state: '12-lead telemetry', icon: Activity },
+  { name: 'Defibrillator', state: 'charged standby', icon: Zap },
+  { name: 'Insufflator', state: '12 mmHg pneumoperitoneum', icon: Gauge },
+  { name: 'Laparoscopic tower', state: '4K scope, white balanced', icon: Video },
+  { name: 'Electrosurgical unit', state: 'cut 30 / coag 25', icon: Scissors },
+  { name: 'Suction and irrigation', state: 'high flow ready', icon: Radio },
+];
+
+const gallbladderCase = [
+  {
+    title: 'Patient positioning and sterile field',
+    action: 'Confirm supine patient, arms secured, monitors attached, antibiotic time-out complete.',
+    pass: 'All critical devices checked before first incision.',
+  },
+  {
+    title: 'Optical port insertion',
+    action: 'Create umbilical access and maintain 12 mmHg pneumoperitoneum.',
+    pass: 'Trocar angle stays within safe entry cone.',
+  },
+  {
+    title: 'Expose Calot triangle',
+    action: 'Retract fundus, identify cystic duct, cystic artery, and common bile duct danger zone.',
+    pass: 'AI confirms critical view of safety before clipping.',
+  },
+  {
+    title: 'Clip and divide cystic structures',
+    action: 'Apply two proximal clips, one distal clip, then divide cystic duct and artery.',
+    pass: 'No clip overlap with common bile duct heat map.',
+  },
+  {
+    title: 'Dissect gall bladder from liver bed',
+    action: 'Use hook cautery along subserosal plane with suction ready.',
+    pass: 'Thermal spread remains below unsafe threshold.',
+  },
+  {
+    title: 'Specimen extraction and closure',
+    action: 'Bag specimen, inspect hemostasis, desufflate, and close fascia.',
+    pass: 'Final sponge/instrument count and post-op report completed.',
+  },
+];
+
+const skinMarks = [
+  [-0.2, 0.62, -0.38, 0.012],
+  [0.18, 0.63, -0.28, 0.009],
+  [-0.06, 0.64, 0.02, 0.01],
+  [0.28, 0.62, 0.12, 0.008],
+  [-0.32, 0.61, 0.18, 0.007],
+  [0.08, 0.63, 0.32, 0.011],
+];
+
+const floorGrid = Array.from({ length: 13 }, (_, index) => (index - 6) * 0.55);
+
 const useSimulation = create((set) => ({
   activeProcedure: procedures[0],
   emergency: scenarios[0],
-  phase: 'Port placement',
+  phase: gallbladderCase[0].title,
+  caseStep: 0,
   bloodLoss: 115,
   timer: 18,
   voice: true,
@@ -102,15 +165,38 @@ const useSimulation = create((set) => ({
   setProcedure: (activeProcedure) =>
     set({
       activeProcedure,
-      phase: activeProcedure.id === 'airway' ? 'Primary survey' : 'Port placement',
+      phase: activeProcedure.id === 'lap-chole' ? gallbladderCase[0].title : activeProcedure.id === 'airway' ? 'Primary survey' : 'Exposure',
+      caseStep: 0,
       bloodLoss: activeProcedure.difficulty,
       timer: 12,
     }),
   setEmergency: (emergency) => set({ emergency, bloodLoss: Math.round(emergency.severity * 2.4) }),
+  advanceCase: () =>
+    set((state) => {
+      const nextStep = Math.min(state.caseStep + 1, gallbladderCase.length - 1);
+      return {
+        caseStep: nextStep,
+        phase: gallbladderCase[nextStep].title,
+        timer: state.timer + 3,
+        bloodLoss: Math.max(80, state.bloodLoss - 8),
+      };
+    }),
+  resetCase: () => set({ caseStep: 0, phase: gallbladderCase[0].title, bloodLoss: 115, timer: 18 }),
   toggleVoice: () => set((state) => ({ voice: !state.voice })),
   toggleTracking: () => set((state) => ({ handTracking: !state.handTracking })),
   toggleHaptics: () => set((state) => ({ haptics: !state.haptics })),
 }));
+
+function FirstPersonCamera() {
+  const cameraRef = useRef();
+  useFrame(() => {
+    if (cameraRef.current) {
+      cameraRef.current.lookAt(0, 0.86, -0.26);
+    }
+  });
+
+  return <PerspectiveCamera ref={cameraRef} makeDefault position={[0, 1.72, 3.15]} fov={58} />;
+}
 
 function SurgicalLights() {
   return (
@@ -136,35 +222,143 @@ function SurgicalLights() {
   );
 }
 
+function RoomShell() {
+  return (
+    <group>
+      <mesh receiveShadow position={[0, 1.38, -2.85]}>
+        <boxGeometry args={[8.2, 2.85, 0.08]} />
+        <meshStandardMaterial color="#d4dde1" roughness={0.48} metalness={0.05} />
+      </mesh>
+      <mesh receiveShadow position={[-4.08, 1.38, 0]}>
+        <boxGeometry args={[0.08, 2.85, 5.8]} />
+        <meshStandardMaterial color="#c7d2d7" roughness={0.52} metalness={0.04} />
+      </mesh>
+      <mesh receiveShadow position={[4.08, 1.38, 0]}>
+        <boxGeometry args={[0.08, 2.85, 5.8]} />
+        <meshStandardMaterial color="#c7d2d7" roughness={0.52} metalness={0.04} />
+      </mesh>
+      <mesh receiveShadow position={[0, 2.84, 0]}>
+        <boxGeometry args={[8.2, 0.08, 5.9]} />
+        <meshStandardMaterial color="#edf3f5" roughness={0.44} metalness={0.08} />
+      </mesh>
+      {floorGrid.map((x) => (
+        <mesh key={`floor-x-${x}`} position={[x, -0.012, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <boxGeometry args={[0.012, 5.9, 0.006]} />
+          <meshStandardMaterial color="#2b3b43" roughness={0.8} />
+        </mesh>
+      ))}
+      {floorGrid.map((z) => (
+        <mesh key={`floor-z-${z}`} position={[0, -0.011, z]} rotation={[-Math.PI / 2, 0, Math.PI / 2]}>
+          <boxGeometry args={[0.012, 8.2, 0.006]} />
+          <meshStandardMaterial color="#2b3b43" roughness={0.8} />
+        </mesh>
+      ))}
+      <group position={[-2.65, 1.02, -2.76]}>
+        {[0, 0.72, 1.44].map((x) => (
+          <mesh key={x} position={[x, 0, 0]}>
+            <boxGeometry args={[0.58, 1.1, 0.12]} />
+            <meshStandardMaterial color="#eef3f5" metalness={0.18} roughness={0.32} />
+          </mesh>
+        ))}
+        <Text position={[0.72, 0.72, -0.09]} fontSize={0.055} color="#35535f" anchorX="center">
+          sterile storage
+        </Text>
+      </group>
+    </group>
+  );
+}
+
 function PatientModel({ bloodLoss }) {
   const breathing = useRef();
   useFrame(({ clock }) => {
     const pulse = 1 + Math.sin(clock.elapsedTime * 2.1) * 0.015;
-    if (breathing.current) breathing.current.scale.set(1, pulse, 1);
+    if (breathing.current) breathing.current.scale.set(1, 1, pulse);
   });
 
   const bleedScale = Math.min(0.8, bloodLoss / 430);
 
   return (
     <group position={[0, 0.78, 0]}>
-      <mesh ref={breathing} position={[0, 0.12, 0]}>
-        <capsuleGeometry args={[0.43, 1.35, 8, 24]} />
+      <mesh position={[0, 0.68, 0.18]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <ringGeometry args={[0.5, 0.88, 64]} />
+        <meshStandardMaterial color="#137c84" roughness={0.5} side={2} />
+      </mesh>
+      <mesh position={[0, 0.675, 0.18]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[2.4, 2.9]} />
+        <meshStandardMaterial color="#1e8f98" roughness={0.58} transparent opacity={0.62} />
+      </mesh>
+      <mesh ref={breathing} position={[0, 0.12, -0.1]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <capsuleGeometry args={[0.46, 1.55, 12, 32]} />
         <meshStandardMaterial color="#c58d74" roughness={0.72} />
       </mesh>
-      <mesh position={[0, 0.88, 0]}>
+      <mesh position={[0, 0.2, -1.12]} castShadow>
         <sphereGeometry args={[0.32, 32, 32]} />
         <meshStandardMaterial color="#c99982" roughness={0.68} />
       </mesh>
-      <mesh position={[0.03, 0.28, -0.43]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.18, 0.012, 16, 80, Math.PI * 1.3]} />
-        <meshStandardMaterial color="#8d101c" roughness={0.35} />
+      <mesh position={[-0.11, 0.27, -1.39]}>
+        <sphereGeometry args={[0.025, 12, 12]} />
+        <meshStandardMaterial color="#2c1b17" roughness={0.8} />
       </mesh>
-      <mesh position={[0.18, 0.2, -0.49]} scale={[bleedScale, bleedScale, bleedScale]}>
-        <sphereGeometry args={[0.18, 32, 32]} />
+      <mesh position={[0.11, 0.27, -1.39]}>
+        <sphereGeometry args={[0.025, 12, 12]} />
+        <meshStandardMaterial color="#2c1b17" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, 0.18, -1.43]} rotation={[0, 0, 0]}>
+        <torusGeometry args={[0.075, 0.006, 8, 32, Math.PI]} />
+        <meshStandardMaterial color="#7a493b" roughness={0.72} />
+      </mesh>
+      {skinMarks.map(([x, y, z, size]) => (
+        <mesh key={`${x}-${z}`} position={[x, y, z]} rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[size, 14]} />
+          <meshStandardMaterial color="#a66f5f" roughness={0.82} />
+        </mesh>
+      ))}
+      <mesh position={[-0.48, 0.1, -0.12]} rotation={[Math.PI / 2, 0, 0.25]} castShadow>
+        <capsuleGeometry args={[0.1, 1.2, 8, 18]} />
+        <meshStandardMaterial color="#c58d74" roughness={0.72} />
+      </mesh>
+      <mesh position={[0.48, 0.1, -0.12]} rotation={[Math.PI / 2, 0, -0.25]} castShadow>
+        <capsuleGeometry args={[0.1, 1.2, 8, 18]} />
+        <meshStandardMaterial color="#c58d74" roughness={0.72} />
+      </mesh>
+      <mesh position={[0, 0.62, -0.08]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.24, 0.42, 48]} />
+        <meshStandardMaterial color="#1c938e" roughness={0.44} side={2} />
+      </mesh>
+      <mesh position={[-0.1, 0.68, -0.16]} rotation={[0.12, 0.25, -0.08]} castShadow>
+        <sphereGeometry args={[0.23, 32, 24]} />
+        <meshStandardMaterial color="#5a2f19" roughness={0.64} />
+      </mesh>
+      <mesh position={[0.18, 0.71, -0.16]} rotation={[0.1, 0, -0.28]} castShadow>
+        <capsuleGeometry args={[0.075, 0.32, 8, 20]} />
+        <meshStandardMaterial color="#4b8f35" roughness={0.48} />
+      </mesh>
+      <mesh position={[0.18, 0.71, -0.16]} rotation={[0.1, 0, -0.28]}>
+        <capsuleGeometry args={[0.096, 0.36, 8, 20]} />
+        <meshStandardMaterial color="#89ff69" emissive="#184c17" emissiveIntensity={0.6} transparent opacity={0.22} roughness={0.24} />
+      </mesh>
+      <mesh position={[0.1, 0.69, -0.01]} rotation={[1.35, 0.25, 0.35]}>
+        <cylinderGeometry args={[0.012, 0.018, 0.34, 12]} />
+        <meshStandardMaterial color="#d6c580" roughness={0.42} />
+      </mesh>
+      <mesh position={[0.18, 0.76, 0.02]} scale={[bleedScale, bleedScale, bleedScale]}>
+        <sphereGeometry args={[0.08, 32, 32]} />
         <meshStandardMaterial color="#9f0d1e" roughness={0.2} metalness={0.05} />
       </mesh>
-      <Text position={[0, 0.64, -0.6]} rotation={[-Math.PI / 2.2, 0, 0]} fontSize={0.08} color="#e8fbff" anchorX="center">
-        dynamic tissue layers
+      {[[-0.32, 0.61, 0.22], [0.38, 0.61, 0.12], [0.03, 0.61, 0.46]].map(([x, y, z]) => (
+        <mesh key={`${x}-${z}`} position={[x, y, z]} rotation={[-Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.075, 0.012, 16, 42]} />
+          <meshStandardMaterial color="#cfd8dd" metalness={0.55} roughness={0.25} />
+        </mesh>
+      ))}
+      {[[-0.32, 0.61, 0.22], [0.38, 0.61, 0.12], [0.03, 0.61, 0.46]].map(([x, y, z]) => (
+        <mesh key={`seal-${x}-${z}`} position={[x, y + 0.006, z]} rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[0.058, 24]} />
+          <meshStandardMaterial color="#382018" roughness={0.78} transparent opacity={0.42} />
+        </mesh>
+      ))}
+      <Text position={[0.05, 0.98, -0.28]} rotation={[-0.95, 0, 0]} fontSize={0.07} color="#e8fbff" anchorX="center">
+        gall bladder target zone
       </Text>
     </group>
   );
@@ -195,7 +389,7 @@ function Instrument({ position, rotation, color, label }) {
 
 function MonitorBank({ emergency }) {
   return (
-    <group position={[2.25, 1.65, -1.8]} rotation={[0, -0.55, 0]}>
+    <group position={[1.75, 1.6, -1.85]} rotation={[0, -0.42, 0]}>
       <mesh>
         <boxGeometry args={[1.25, 0.82, 0.08]} />
         <meshStandardMaterial color="#101923" metalness={0.25} roughness={0.4} />
@@ -217,16 +411,143 @@ function MonitorBank({ emergency }) {
   );
 }
 
+function LaparoscopicDisplay() {
+  return (
+    <group position={[-1.72, 1.72, -1.92]} rotation={[0, 0.42, 0]}>
+      <mesh castShadow>
+        <boxGeometry args={[1.12, 0.78, 0.08]} />
+        <meshStandardMaterial color="#111a21" metalness={0.34} roughness={0.32} />
+      </mesh>
+      <mesh position={[0, 0, -0.048]}>
+        <planeGeometry args={[0.98, 0.62]} />
+        <meshStandardMaterial color="#180f0a" emissive="#241006" emissiveIntensity={0.55} roughness={0.28} />
+      </mesh>
+      <mesh position={[-0.18, 0.03, -0.086]} rotation={[0, 0, -0.25]}>
+        <sphereGeometry args={[0.23, 32, 18]} />
+        <meshStandardMaterial color="#7b3c1d" roughness={0.55} />
+      </mesh>
+      <mesh position={[0.14, -0.02, -0.09]} rotation={[0, 0, -0.42]}>
+        <capsuleGeometry args={[0.07, 0.32, 8, 18]} />
+        <meshStandardMaterial color="#4da23d" emissive="#12390d" emissiveIntensity={0.4} roughness={0.38} />
+      </mesh>
+      <mesh position={[0.17, -0.22, -0.095]} rotation={[1.2, 0, 0.2]}>
+        <cylinderGeometry args={[0.01, 0.014, 0.42, 12]} />
+        <meshStandardMaterial color="#e8d384" roughness={0.36} />
+      </mesh>
+      <mesh position={[0.31, 0.23, -0.1]}>
+        <ringGeometry args={[0.04, 0.055, 24]} />
+        <meshStandardMaterial color="#5cc8ff" emissive="#0d4661" emissiveIntensity={1.1} />
+      </mesh>
+      <Text position={[0, -0.43, -0.1]} fontSize={0.045} color="#c8f7ff" anchorX="center">
+        laparoscopic camera feed
+      </Text>
+    </group>
+  );
+}
+
+function IvStand() {
+  return (
+    <group position={[3.12, 0.18, -0.92]} rotation={[0, -0.22, 0]}>
+      <mesh castShadow position={[0, 0.78, 0]}>
+        <cylinderGeometry args={[0.018, 0.018, 1.55, 18]} />
+        <meshStandardMaterial color="#d6e0e5" metalness={0.82} roughness={0.18} />
+      </mesh>
+      <mesh position={[0, 1.58, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.014, 0.014, 0.52, 18]} />
+        <meshStandardMaterial color="#d6e0e5" metalness={0.82} roughness={0.18} />
+      </mesh>
+      <mesh position={[-0.18, 1.28, 0]} castShadow>
+        <boxGeometry args={[0.18, 0.34, 0.055]} />
+        <meshPhysicalMaterial color="#d9fbff" transmission={0.28} transparent opacity={0.54} roughness={0.08} />
+      </mesh>
+      <mesh position={[0, 0.03, 0]}>
+        <cylinderGeometry args={[0.26, 0.26, 0.025, 28]} />
+        <meshStandardMaterial color="#aebbc1" metalness={0.76} roughness={0.22} />
+      </mesh>
+      <Text position={[0, 1.78, 0]} fontSize={0.045} color="#e8fbff" anchorX="center">
+        IV fluids
+      </Text>
+    </group>
+  );
+}
+
+function SurgeonHands() {
+  const left = useRef();
+  const right = useRef();
+  useFrame(({ clock }) => {
+    const movement = Math.sin(clock.elapsedTime * 1.8) * 0.025;
+    if (left.current) left.current.rotation.z = 0.22 + movement;
+    if (right.current) right.current.rotation.z = -0.2 - movement;
+  });
+
+  return (
+    <group position={[0, 0, 0]}>
+      <group ref={left} position={[-0.72, 0.55, 1.15]} rotation={[0.1, 0.18, 0.24]}>
+        <mesh castShadow>
+          <capsuleGeometry args={[0.08, 0.52, 8, 18]} />
+          <meshStandardMaterial color="#b97b64" roughness={0.62} />
+        </mesh>
+        <mesh position={[0.06, -0.11, 0.1]} rotation={[0.45, 0.15, -0.18]}>
+          <boxGeometry args={[0.2, 0.08, 0.08]} />
+          <meshStandardMaterial color="#0a6b72" roughness={0.5} />
+        </mesh>
+        <Instrument position={[0.24, 0.02, -0.22]} rotation={[0, -0.4, -0.25]} color="#dce5ea" label="left grasper" />
+      </group>
+      <group ref={right} position={[0.72, 0.54, 1.16]} rotation={[0.08, -0.16, -0.2]}>
+        <mesh castShadow>
+          <capsuleGeometry args={[0.08, 0.52, 8, 18]} />
+          <meshStandardMaterial color="#b97b64" roughness={0.62} />
+        </mesh>
+        <mesh position={[-0.06, -0.11, 0.1]} rotation={[0.45, -0.15, 0.18]}>
+          <boxGeometry args={[0.2, 0.08, 0.08]} />
+          <meshStandardMaterial color="#0a6b72" roughness={0.5} />
+        </mesh>
+        <Instrument position={[-0.24, 0.02, -0.22]} rotation={[0, 0.36, 0.22]} color="#f1d36c" label="clip applier" />
+      </group>
+      <mesh position={[0, 0.42, 0.35]} rotation={[1.23, 0, 0]}>
+        <cylinderGeometry args={[0.018, 0.018, 1.72, 18]} />
+        <meshStandardMaterial color="#e7eef2" metalness={0.9} roughness={0.16} />
+      </mesh>
+      <mesh position={[0, 0.22, 0.98]}>
+        <torusGeometry args={[0.16, 0.015, 16, 48]} />
+        <meshStandardMaterial color="#0b151b" metalness={0.4} roughness={0.38} />
+      </mesh>
+      <Html position={[0, 0.92, 1.05]} center className="scene-label pov-label">
+        first-person surgeon view
+      </Html>
+    </group>
+  );
+}
+
+function DeviceCart({ position, rotation, label, color }) {
+  return (
+    <group position={position} rotation={rotation}>
+      <mesh castShadow>
+        <boxGeometry args={[0.58, 0.8, 0.44]} />
+        <meshStandardMaterial color="#b8c5cc" metalness={0.22} roughness={0.34} />
+      </mesh>
+      <mesh position={[0, 0.08, -0.23]}>
+        <planeGeometry args={[0.44, 0.38]} />
+        <meshStandardMaterial color="#07141a" emissive={color} emissiveIntensity={0.52} />
+      </mesh>
+      <Text position={[0, 0.08, -0.47]} fontSize={0.045} color="#dff8ff" anchorX="center">
+        {label}
+      </Text>
+    </group>
+  );
+}
+
 function OperatingTheaterScene() {
   const { bloodLoss, emergency, handTracking, haptics } = useSimulation();
 
   return (
     <Canvas shadows dpr={[1, 1.7]} gl={{ antialias: true }} data-testid="ot-canvas">
       <Suspense fallback={null}>
-        <PerspectiveCamera makeDefault position={[3.6, 2.4, 4.5]} fov={44} />
+        <FirstPersonCamera />
         <color attach="background" args={['#071016']} />
         <ambientLight intensity={0.8} />
         <directionalLight position={[3, 5, 4]} intensity={2.8} castShadow />
+        <RoomShell />
         <SurgicalLights />
 
         <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]}>
@@ -234,16 +555,17 @@ function OperatingTheaterScene() {
           <meshStandardMaterial color="#18242b" roughness={0.65} />
         </mesh>
         <mesh position={[0, 0.48, 0]} castShadow>
-          <boxGeometry args={[1.45, 0.24, 2.6]} />
+          <boxGeometry args={[1.72, 0.24, 3.25]} />
           <meshStandardMaterial color="#d8e3e7" metalness={0.28} roughness={0.26} />
         </mesh>
         <mesh position={[0, 0.64, 0]} castShadow>
-          <boxGeometry args={[1.55, 0.08, 2.76]} />
+          <boxGeometry args={[1.82, 0.08, 3.42]} />
           <meshStandardMaterial color="#2f8f96" roughness={0.42} />
         </mesh>
         <PatientModel bloodLoss={bloodLoss} />
+        <SurgeonHands />
 
-        <group position={[-2.1, 0.74, -0.45]}>
+        <group position={[-1.95, 0.74, 0.45]}>
           <mesh>
             <boxGeometry args={[1.35, 0.08, 0.72]} />
             <meshStandardMaterial color="#cdd8dd" metalness={0.8} roughness={0.18} />
@@ -253,6 +575,11 @@ function OperatingTheaterScene() {
         </group>
 
         <MonitorBank emergency={emergency} />
+        <LaparoscopicDisplay />
+        <IvStand />
+        <DeviceCart position={[2.65, 1.05, 0.45]} rotation={[0, -0.75, 0]} label="insufflator 12 mmHg" color="#0f5364" />
+        <DeviceCart position={[-2.65, 1.05, -0.35]} rotation={[0, 0.75, 0]} label="electrosurgical unit" color="#563719" />
+        <DeviceCart position={[2.6, 0.9, 1.28]} rotation={[0, -0.9, 0]} label="defibrillator standby" color="#4a1820" />
 
         <group position={[-2.35, 1.35, 1.25]} rotation={[0, 0.45, 0]}>
           <mesh>
@@ -285,7 +612,7 @@ function OperatingTheaterScene() {
           </Html>
         </group>
 
-        <OrbitControls enablePan={false} minDistance={3.2} maxDistance={6.2} maxPolarAngle={Math.PI / 2.1} />
+        <OrbitControls enablePan={false} enableZoom={false} enableRotate={false} />
       </Suspense>
     </Canvas>
   );
@@ -592,6 +919,74 @@ function InstrumentPanel() {
   );
 }
 
+function DevicePanel() {
+  return (
+    <section className="panel device-panel" aria-label="Operation theater devices">
+      <div className="panel-heading">
+        <MonitorCog aria-hidden="true" />
+        <h2>OT Device Console</h2>
+      </div>
+      <div className="device-list">
+        {theaterDevices.map(({ name, state, icon: Icon }) => (
+          <div className="device-row" key={name}>
+            <Icon aria-hidden="true" />
+            <span>
+              <strong>{name}</strong>
+              <em>{state}</em>
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function GallbladderTestCase() {
+  const { caseStep, advanceCase, resetCase } = useSimulation();
+  const current = gallbladderCase[caseStep];
+  const progress = Math.round(((caseStep + 1) / gallbladderCase.length) * 100);
+
+  return (
+    <section className="panel test-case-panel" aria-label="Gall bladder removal first-person test case">
+      <div className="panel-heading">
+        <Crosshair aria-hidden="true" />
+        <h2>Test Case: Gall Bladder Removal</h2>
+        <span className="score">{progress}%</span>
+      </div>
+      <div className="case-brief">
+        <strong>First-person laparoscopic cholecystectomy</strong>
+        <span>Patient: 42-year-old, acute cholecystitis risk model, stable under general anesthesia.</span>
+      </div>
+      <div className="case-current">
+        <small>Current objective</small>
+        <h3>{current.title}</h3>
+        <p>{current.action}</p>
+        <div className="pass-criteria">
+          <CheckCircle2 aria-hidden="true" />
+          <span>{current.pass}</span>
+        </div>
+      </div>
+      <ol className="case-steps">
+        {gallbladderCase.map((step, index) => (
+          <li className={index < caseStep ? 'done' : index === caseStep ? 'active' : ''} key={step.title}>
+            <span>{index + 1}</span>
+            <strong>{step.title}</strong>
+          </li>
+        ))}
+      </ol>
+      <div className="case-actions">
+        <button type="button" className="primary-action" onClick={advanceCase}>
+          <Play aria-hidden="true" />
+          Run next step
+        </button>
+        <button type="button" className="secondary-action" onClick={resetCase}>
+          Reset
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function App() {
   const { activeProcedure } = useSimulation();
 
@@ -634,9 +1029,11 @@ function App() {
 
       <div className="workspace">
         <aside className="left-rail">
+          <GallbladderTestCase />
           <ProcedureLibrary />
           <CapabilityGrid />
           <InstrumentPanel />
+          <DevicePanel />
         </aside>
 
         <section className="simulator-stage" aria-label="Immersive operating theater">
