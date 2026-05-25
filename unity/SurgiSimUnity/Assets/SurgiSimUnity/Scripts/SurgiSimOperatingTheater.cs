@@ -114,11 +114,20 @@ namespace SurgiSim.UnityVisualization
                     SetAnatomyMode(mode);
                 }
 
+                var captureTime = GetCommandLineValue("-surgisim-capture-time");
+                if (float.TryParse(captureTime, out var requestedTime))
+                {
+                    AutoPlay = false;
+                    replayTimer = Mathf.Clamp(requestedTime, 0f, stepTitles.Length * SecondsPerStep);
+                    SetStep(Mathf.Clamp(Mathf.FloorToInt(replayTimer / SecondsPerStep), 0, stepTitles.Length - 1));
+                }
+
                 var capturePath = GetCommandLineValue("-surgisim-capture");
                 if (!string.IsNullOrWhiteSpace(capturePath))
                 {
-                    StartCoroutine(CapturePreview(capturePath));
+                    StartCoroutine(CapturePreview(capturePath, HasCommandLineFlag("-surgisim-capture-quit")));
                 }
+
             }
             catch (System.Exception exception)
             {
@@ -643,12 +652,30 @@ namespace SurgiSim.UnityVisualization
             return null;
         }
 
-        private IEnumerator CapturePreview(string path)
+        private static bool HasCommandLineFlag(string key)
+        {
+            foreach (var arg in System.Environment.GetCommandLineArgs())
+            {
+                if (arg == key)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private IEnumerator CapturePreview(string path, bool quitAfterCapture)
         {
             yield return new WaitForSeconds(1f);
             yield return new WaitForEndOfFrame();
             ScreenCapture.CaptureScreenshot(path);
             Debug.Log($"SurgiSim captured preview: {path}");
+            if (quitAfterCapture)
+            {
+                yield return new WaitForSeconds(0.75f);
+                Application.Quit();
+            }
         }
 
         private void SetStep(int step)
